@@ -41,13 +41,6 @@ Variable T : Type.
 Definition al_disjoint (l1 l2:assoc_list T) : Prop :=
   forall (k:N) (v1:T), In (k,v1) l1 -> forall v2, ~In (k,v2) l2.
 
-Lemma al_disjoint_nil_r :
-  forall (l1:assoc_list T), al_disjoint l1 nil.
-Proof.
-  intros l1. unfold al_disjoint. intros k v1 in_l1 v2.
-  apply in_nil.
-Qed.
-
 Lemma al_disjoint_nil_l :
   forall (l1:assoc_list T), al_disjoint nil l1.
   intros l1. unfold al_disjoint. intros k v1 in_nil v2.
@@ -88,8 +81,8 @@ Proof.
         apply H with (k0 := k) (v1 := v) (v2 := any_v).
         * apply in_eq.
         * assumption.
-      + assert (((k,v) :: nil) ++ l1 = (k,v) :: l1) as A by reflexivity.
-        rewrite <- A in H. apply al_disjoint_app_split in H. apply H.
+      + replace ((k,v) :: l1) with (((k,v) :: nil) ++ l1) in H by reflexivity.
+        apply al_disjoint_app_split in H. apply H.
 Qed.
 
 Inductive al_invariant : assoc_list T -> Prop :=
@@ -103,7 +96,7 @@ Lemma al_invariant_disjoint :
 Proof.
   intros l1 l2 H. induction l1 as [|h t IH].
   - apply al_disjoint_nil_l.
-  - destruct h as [k v]. apply al_disjoint_cons_not_elem. split. 
+  - destruct h as [k v]. apply al_disjoint_cons_not_elem. split.
     + inversion H. intros any_v in_l2. apply H2 with (x := any_v).
       apply in_or_app. tauto.
     + apply IH. inversion H. assumption.
@@ -116,8 +109,9 @@ Proof.
   intros l1 l2 H. induction l1 as [|h t IH].
   - split. constructor. assumption.
   - destruct h as [k v]. inversion H. split.
-    + apply al_invariant_cons.  intros any_v in_t. apply H2 with any_v.
-      apply in_or_app. tauto. apply IH. assumption.
+    + apply al_invariant_cons.
+      * intros any_v in_t. apply H2 with any_v. apply in_or_app. tauto.
+      * apply IH. assumption.
     + apply IH. assumption.
 Qed.
 
@@ -128,12 +122,12 @@ Proof.
   intros l1 l2 inv_l1 inv_l2 dis. induction l1 as [|h t IH].
   - assumption.
   - destruct h as [k v]. simpl. apply <- al_disjoint_cons_not_elem in dis.
-    destruct dis as [not_in_l2 dis_t_l2]. apply al_invariant_cons. 
+    destruct dis as [not_in_l2 dis_t_l2]. apply al_invariant_cons.
     + intros any_v in_t_t2. apply in_app_or in in_t_t2. destruct in_t_t2.
-      * inversion inv_l1. apply H2 with any_v. assumption. 
-      * apply not_in_l2 with any_v. assumption. 
-    + apply IH. 
-      * inversion inv_l1. assumption. 
+      * inversion inv_l1. apply H2 with any_v. assumption.
+      * apply not_in_l2 with any_v. assumption.
+    + apply IH.
+      * inversion inv_l1. assumption.
       * assumption.
 Qed.
 
@@ -177,9 +171,9 @@ Proof.
   intros k. induction l as [|h t IH].
   - trivial.
   - intros l2 H. destruct h as [k' v]. simpl. destruct (N.eq_dec k' k) as [E|E].
-    + inversion H. assumption. 
+    + inversion H. assumption.
     + rewrite al_invariant_cons_snoc. apply IH.
-      * apply al_invariant_app_split in H. destruct H as [Ha Hb]. 
+      * apply al_invariant_app_split in H. destruct H as [Ha Hb].
         inversion Ha. assumption.
       * rewrite <- al_invariant_cons_snoc. assumption.
 Qed.
@@ -197,9 +191,9 @@ Proof.
   - inversion in_r.
   - destruct h as [k' v']. simpl in in_r. destruct (N.eq_dec k' k) as [E|E].
     + inversion inv_l. apply H1 with v. rewrite E. assumption.
-    + apply IH. 
+    + apply IH.
       * inversion inv_l. assumption.
-      * inversion in_r. inversion H. contradiction. assumption. 
+      * inversion in_r. inversion H. contradiction. assumption.
 Qed.
 
 Theorem insert_al_invariant :
@@ -218,16 +212,21 @@ Proof.
 Qed.
 
 Theorem assoc_not_in :
-  forall (k:N), (forall v:T, ~In (k,v) l) -> assoc k l = None.
+  forall (k:N) (l2:assoc_list T), 
+    al_invariant T l2 -> (forall v:T, ~In (k,v) l2) -> assoc k l2 = None.
 Proof.
-  intros k not_in. induction l as [|h t IH].
+  intros k l2 inv_l2 not_in. induction l2 as [|h t IH].
   - reflexivity.
   - destruct h as [k' v]. simpl. destruct (N.eq_dec k' k).
     + elimtype False. apply not_in with v. rewrite e. apply in_eq.
     + apply IH.
-      * inversion inv_l. assumption.
+      * inversion inv_l2. assumption.
       * intros any_v. intros in_t. apply not_in with any_v. apply in_cons. assumption.
 Qed.
+
+Theorem assoc_remove :
+  forall (k:N), assoc k (remove k l) = None.
+Proof. intros k. apply assoc_not_in. apply remove_al_invariant. apply remove_not_in. Qed.
 
 Theorem assoc_empty :
   forall (k:N), assoc k (@empty T) = None.
