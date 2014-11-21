@@ -63,49 +63,67 @@ Section InvariantDef.
 
 Variable T : Type.
 
+Definition in_domain_prop (k:N) (l:assoc_list T) : Prop :=
+  exists v, In (k,v) l.
+
+Lemma in_domain_app_or :
+  forall (k:N) (l1 l2:assoc_list T),
+    in_domain_prop k (l1 ++ l2) <-> in_domain_prop k l1 \/ in_domain_prop k l2.
+Proof.
+  intros k l1 l2. split.
+  - intros H. destruct H as [v in_l12]. apply in_app_or in in_l12.
+    destruct in_l12.
+    + left. exists v. assumption.
+    + right. exists v. assumption.
+  - intros P. destruct P as [in_l | in_l];
+      destruct in_l as [v in_l]; exists v; apply in_or_app; tauto.
+Qed.
+
 Definition al_disjoint (l1 l2:assoc_list T) : Prop :=
-  forall (k:N) (v1:T), In (k,v1) l1 -> forall v2, ~In (k,v2) l2.
+  forall k, in_domain_prop k l1 -> ~in_domain_prop k l2.
 
 Lemma al_disjoint_nil_l :
   forall (l1:assoc_list T), al_disjoint nil l1.
-  intros l1. unfold al_disjoint. intros k v1 in_nil v2.
-  inversion in_nil.
+Proof.
+  intros l1. unfold al_disjoint. unfold in_domain_prop. intros k in_nil.
+  destruct in_nil as [v v_in_nil]. inversion v_in_nil.
 Qed.
 
 Lemma al_disjoint_symmetry :
   forall (l1 l2:assoc_list T), al_disjoint l1 l2 -> al_disjoint l2 l1.
 Proof.
-  intros l1 l2 H. unfold al_disjoint. intros k v1 in_l2 v2 in_l1.
-  apply H with (k := k) (v1 := v2) (v2 := v1); assumption.
+  unfold al_disjoint. unfold in_domain_prop. unfold not. 
+  intros l1 l2 H k in_l2 in_l1.
+  apply H with k; assumption.
 Qed.
 
 Lemma al_disjoint_app_split :
   forall (l1 l2 l3:assoc_list T),
     al_disjoint (l1 ++ l2) l3 -> al_disjoint l1 l3 /\ al_disjoint l2 l3.
 Proof.
-  intros l1 l2 l3. unfold al_disjoint. intros H. split;
-    intros k v1 in_l v2 in_l3;
-    apply H with (k := k) (v1 := v1) (v2 := v2);
-    try (apply in_or_app);
-    tauto.
+  intros l1 l2 l3. unfold al_disjoint. unfold in_domain_prop. intros H. split;
+    intros k in_l12 in_l3;
+    destruct in_l12 as [v12 v_in_l12];
+    apply H with k;
+      try (exists v12; apply in_or_app);
+      tauto.
 Qed.
 
 Lemma al_disjoint_cons_not_elem :
   forall (l1 l2:assoc_list T) (k:N) (v:T),
-    (forall (any_v:T), ~In (k,any_v) l2) /\ al_disjoint l1 l2 <->
-    al_disjoint ((k,v) :: l1) l2.
+    ~(in_domain_prop k l2) /\ al_disjoint l1 l2 <-> al_disjoint ((k,v) :: l1) l2.
 Proof.
   intros l1 l2 k v. split.
     - intros P. destruct P as [not_in_l2 H].
-      unfold al_disjoint. intros any_k v1 in_l1 v2 in_l2. apply in_inv in in_l1.
-      destruct in_l1 as [E|in_l1].
-      + inversion E as [[ke ve]]. apply not_in_l2 with v2. rewrite ke. assumption.
-      + apply H with (v1 := v1) (v2 := v2) (k := any_k); assumption.
+      unfold al_disjoint. unfold in_domain_prop. intros any_k in_r.
+      destruct in_r as [vr vr_in_r].
+      apply in_inv in vr_in_r.
+      destruct vr_in_r as [E|in_l1].
+      + inversion E as [[ke ve]]. rewrite <- ke. assumption.
+      + apply H with (k := any_k). unfold in_domain_prop. exists vr. assumption.
     - intros H. split.
-      + intros any_v in_l2. unfold al_disjoint in H.
-        apply H with (k0 := k) (v1 := v) (v2 := any_v).
-        * apply in_eq.
-        * assumption.
+      + unfold al_disjoint in H.
+        apply H. unfold in_domain_prop. exists v. apply in_eq.
       + replace ((k,v) :: l1) with (((k,v) :: nil) ++ l1) in H by reflexivity.
         apply al_disjoint_app_split in H. apply H.
 Qed.
@@ -114,13 +132,7 @@ Inductive al_invariant : assoc_list T -> Prop :=
   | al_invariant_nil  : al_invariant nil
   | al_invariant_cons :
       forall (k:N) (v:T) (t:assoc_list T),
-        (forall x, ~In (k,x) t) -> al_invariant t -> al_invariant ((k,v) :: t).
-
-Fixpoint al_invariant_2 (l:assoc_list T) : bool :=
-  match l with
-    | nil        => true
-    | (k,v) :: t => andb (al_invariant_2 t) (forallb (fun h => negb (N.eqb (fst h) k)) t)
-  end.
+        ~in_domain_prop k t -> al_invariant t -> al_invariant ((k,v) :: t).
 
 Lemma al_invariant_disjoint :
   forall (l1 l2:assoc_list T), al_invariant (l1 ++ l2) -> al_disjoint l1 l2.
@@ -128,8 +140,9 @@ Proof.
   intros l1 l2 H. induction l1 as [|h t IH].
   - apply al_disjoint_nil_l.
   - destruct h as [k v]. apply al_disjoint_cons_not_elem. split.
-    + inversion H. intros any_v in_l2. apply H2 with (x := any_v).
-      apply in_or_app. tauto.
+    + inversion H as [|k' v' t' not_in_tl2 inv_tl2]. subst.
+      rewrite in_domain_app_or in not_in_tl2. intro not_in_l2. apply not_in_tl2.
+      tauto.
     + apply IH. inversion H. assumption.
 Qed.
 
@@ -139,9 +152,9 @@ Lemma al_invariant_app_split :
 Proof.
   intros l1 l2 H. induction l1 as [|h t IH].
   - split. constructor. assumption.
-  - destruct h as [k v]. inversion H. split.
+  - destruct h as [k v]. inversion H as [|k' v' t' not_in_tl2 inv_tl2]; subst. split.
     + apply al_invariant_cons.
-      * intros any_v in_t. apply H2 with any_v. apply in_or_app. tauto.
+      * intro not_in_t. apply not_in_tl2. apply in_domain_app_or. tauto.
       * apply IH. assumption.
     + apply IH. assumption.
 Qed.
@@ -154,9 +167,10 @@ Proof.
   - assumption.
   - destruct h as [k v]. simpl. apply <- al_disjoint_cons_not_elem in dis.
     destruct dis as [not_in_l2 dis_t_l2]. apply al_invariant_cons.
-    + intros any_v in_t_t2. apply in_app_or in in_t_t2. destruct in_t_t2.
-      * inversion inv_l1. apply H2 with any_v. assumption.
-      * apply not_in_l2 with any_v. assumption.
+    + inversion inv_l1 as [|k' v' t' not_in_t inv_t]. subst.
+      intros in_tl2. apply in_domain_app_or in in_tl2. destruct in_tl2 as [in_t | in_l2].
+      * apply not_in_t. assumption.
+      * apply not_in_l2. assumption.
     + apply IH.
       * inversion inv_l1. assumption.
       * assumption.
@@ -216,12 +230,13 @@ Proof.
 Qed.
 
 Theorem remove_not_in :
-  forall (k:N) (v:T), ~In (k,v) (remove k l).
+  forall (k:N), ~in_domain_prop T k (remove k l).
 Proof.
-  intros k v in_r. induction l as [|h t IH].
+  unfold in_domain_prop. intros k in_r. destruct in_r as [v in_r]. induction l as [|h t IH].
   - inversion in_r.
   - destruct h as [k' v']. simpl in in_r. destruct (N.eq_dec k' k) as [E|E].
-    + inversion inv_l. apply H1 with v. rewrite E. assumption.
+    + subst. inversion inv_l as [|k'' v'' t'' not_in_t inv_t]. subst. apply not_in_t.
+      exists v. assumption.
     + apply IH.
       * inversion inv_l. assumption.
       * inversion in_r. inversion H. contradiction. assumption.
@@ -243,14 +258,15 @@ Proof.
 Qed.
 
 Theorem assoc_not_in :
-  forall (k:N) (l2:assoc_list T), 
-    (forall v:T, ~In (k,v) l2) -> assoc k l2 = None.
+  forall (k:N) (l2:assoc_list T),
+    ~in_domain_prop T k l2 -> assoc k l2 = None.
 Proof.
   intros k l2 not_in. induction l2 as [|h t IH].
   - reflexivity.
   - destruct h as [k' v]. simpl. destruct (N.eq_dec k' k).
-    + elimtype False. apply not_in with v. rewrite e. apply in_eq.
-    + apply IH. intros any_v. intros in_t. apply not_in with any_v. apply in_cons. assumption.
+    + elimtype False. apply not_in. rewrite e. exists v. apply in_eq.
+    + apply IH. intros in_t. apply not_in. destruct in_t as [v' v'_in_t].
+      exists v'. apply in_cons. assumption.
 Qed.
 
 Theorem assoc_remove :
