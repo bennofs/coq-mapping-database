@@ -31,6 +31,31 @@ Fixpoint assoc (k:N) (l:assoc_list) : option T :=
   end.
 Global Arguments assoc : default implicits.
 
+Definition in_domain (k:N) (l:assoc_list) : bool :=
+  match (assoc k l) with
+    | None   => false
+    | Some _ => true
+  end.
+
+Fixpoint rev_assoc (p:T -> bool) (l:assoc_list) : list N :=
+  match l with
+    | nil         => nil
+    | (k,v) :: t => if p v then k :: rev_assoc p t else rev_assoc p t
+  end.
+
+Fixpoint merge (f:T -> T -> T) (l1:assoc_list) (l2:assoc_list) : assoc_list :=
+  match l1 with
+    | nil        => l2
+    | (k,v1) :: l1_t =>
+      match assoc k l2 with
+        | None    => (k,v1) :: merge f l1_t l2
+        | Some v2 => (k,f v1 v2) :: merge f l1_t (remove k l2)
+      end
+  end.
+
+Definition union : assoc_list -> assoc_list -> assoc_list :=
+  merge (fun _ b => b).
+
 End AssocListDef.
 
 
@@ -74,7 +99,7 @@ Proof.
     - intros P. destruct P as [not_in_l2 H].
       unfold al_disjoint. intros any_k v1 in_l1 v2 in_l2. apply in_inv in in_l1.
       destruct in_l1 as [E|in_l1].
-      + inversion E. apply not_in_l2 with v2. rewrite H1. assumption.
+      + inversion E as [[ke ve]]. apply not_in_l2 with v2. rewrite ke. assumption.
       + apply H with (v1 := v1) (v2 := v2) (k := any_k); assumption.
     - intros H. split.
       + intros any_v in_l2. unfold al_disjoint in H.
@@ -90,6 +115,12 @@ Inductive al_invariant : assoc_list T -> Prop :=
   | al_invariant_cons :
       forall (k:N) (v:T) (t:assoc_list T),
         (forall x, ~In (k,x) t) -> al_invariant t -> al_invariant ((k,v) :: t).
+
+Fixpoint al_invariant_2 (l:assoc_list T) : bool :=
+  match l with
+    | nil        => true
+    | (k,v) :: t => andb (al_invariant_2 t) (forallb (fun h => negb (N.eqb (fst h) k)) t)
+  end.
 
 Lemma al_invariant_disjoint :
   forall (l1 l2:assoc_list T), al_invariant (l1 ++ l2) -> al_disjoint l1 l2.
@@ -213,23 +244,27 @@ Qed.
 
 Theorem assoc_not_in :
   forall (k:N) (l2:assoc_list T), 
-    al_invariant T l2 -> (forall v:T, ~In (k,v) l2) -> assoc k l2 = None.
+    (forall v:T, ~In (k,v) l2) -> assoc k l2 = None.
 Proof.
-  intros k l2 inv_l2 not_in. induction l2 as [|h t IH].
+  intros k l2 not_in. induction l2 as [|h t IH].
   - reflexivity.
   - destruct h as [k' v]. simpl. destruct (N.eq_dec k' k).
     + elimtype False. apply not_in with v. rewrite e. apply in_eq.
-    + apply IH.
-      * inversion inv_l2. assumption.
-      * intros any_v. intros in_t. apply not_in with any_v. apply in_cons. assumption.
+    + apply IH. intros any_v. intros in_t. apply not_in with any_v. apply in_cons. assumption.
 Qed.
 
 Theorem assoc_remove :
   forall (k:N), assoc k (remove k l) = None.
-Proof. intros k. apply assoc_not_in. apply remove_al_invariant. apply remove_not_in. Qed.
+Proof. intros k. apply assoc_not_in. apply remove_not_in. Qed.
 
 Theorem assoc_empty :
   forall (k:N), assoc k (@empty T) = None.
 Proof. reflexivity. Qed.
 
 End AssocListTheorems.
+
+(*
+- in_domain
+- fold (mit key)
+- rev_assoc (mit predicate)
+- union/merge
