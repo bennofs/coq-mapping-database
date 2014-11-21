@@ -60,6 +60,13 @@ Definition union : assoc_list -> assoc_list -> assoc_list :=
   merge (fun _ b => b).
 Global Arguments union : default implicits.
 
+Fixpoint fold {X:Type} (f:N -> T -> X -> X) (x:X) (l:assoc_list) : X :=
+  match l with
+    | nil        => x
+    | (k,v) :: t => f k v (fold f x t)
+  end.
+Global Arguments fold : default implicits.
+
 End AssocListDef.
 
 
@@ -280,6 +287,12 @@ Proof. intros k. apply assoc_not_in. apply remove_not_in. Qed.
 Theorem assoc_empty :
   forall (k:N), assoc k (@empty T) = None.
 Proof. reflexivity. Qed.
+
+Theorem in_domain_assoc :
+  forall (k:N), in_domain k l = if assoc k l then true else false.
+Proof. reflexivity. Qed.
+
+
 
 End AssocListTheorems.
 
