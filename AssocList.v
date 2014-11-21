@@ -36,12 +36,14 @@ Definition in_domain (k:N) (l:assoc_list) : bool :=
     | None   => false
     | Some _ => true
   end.
+Global Arguments in_domain : default implicits.
 
 Fixpoint rev_assoc (p:T -> bool) (l:assoc_list) : list N :=
   match l with
     | nil         => nil
     | (k,v) :: t => if p v then k :: rev_assoc p t else rev_assoc p t
   end.
+Global Arguments assoc : default implicits.
 
 Fixpoint merge (f:T -> T -> T) (l1:assoc_list) (l2:assoc_list) : assoc_list :=
   match l1 with
@@ -52,9 +54,11 @@ Fixpoint merge (f:T -> T -> T) (l1:assoc_list) (l2:assoc_list) : assoc_list :=
         | Some v2 => (k,f v1 v2) :: merge f l1_t (remove k l2)
       end
   end.
+Global Arguments merge : default implicits.
 
 Definition union : assoc_list -> assoc_list -> assoc_list :=
   merge (fun _ b => b).
+Global Arguments union : default implicits.
 
 End AssocListDef.
 
