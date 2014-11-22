@@ -292,7 +292,63 @@ Theorem in_domain_assoc :
   forall (k:N), in_domain k l = if assoc k l then true else false.
 Proof. reflexivity. Qed.
 
+Theorem assoc_tail :
+  forall (k k':N) (v:T) (t:assoc_list T), k <> k' -> assoc k ((k',v) :: t) = assoc k t.
+Proof.
+  intros k k' v t neq. unfold assoc at 1. simpl. destruct (N.eq_dec k' k).
+  + exfalso. apply neq. symmetry. assumption.
+  + fold (assoc k l). reflexivity.
+Qed.
 
+Theorem in_domain_tail :
+  forall (k k':N) (v:T) (t:assoc_list T),
+    k <> k' -> in_domain k ((k',v) :: t) = true -> in_domain k t = true.
+Proof.
+  intros k k' v t neq. unfold in_domain. rewrite assoc_tail. trivial. assumption.
+Qed.
+
+Lemma eq_dec_refl : forall (X:Type) k (x:X) (y:X), (if N.eq_dec k k then x else y) = x.
+Proof.
+  intros X k x y.
+  destruct (N.eq_dec k k). reflexivity. exfalso. apply n. reflexivity.
+Qed.
+
+Theorem in_domain_true_prop :
+  forall (k:N), in_domain k l = true <-> in_domain_prop T k l.
+Proof.
+  intros k. split.
+  - intros H. induction l as [|h t IH].
+    + unfold in_domain in H. discriminate H.
+    + destruct h as [k' v]. simpl in H. destruct (N.eq_dec k' k).
+      * subst. exists v. apply in_eq.
+      * inversion inv_l as [|k'' v'' t'' not_in_t inv_t]. subst.
+        apply in_domain_tail in H.
+        destruct IH as [v' in_t];
+          try (exists v'; apply in_cons);
+          assumption.
+        intro eq. symmetry in eq. contradiction.
+  - unfold in_domain_prop. intros H. destruct H as [v in_l]. induction l as [|h t IH].
+    + inversion in_l.
+    + destruct h as [k' v']. unfold in_domain. unfold assoc. simpl.
+      inversion inv_l as [|k'' v'' t'' not_in_t inv_t]. subst.
+      destruct (N.eq_dec k' k).
+      * reflexivity.
+      * fold (assoc k t). fold (in_domain k t). apply IH. assumption.
+        apply in_inv in in_l. destruct in_l as [H|H].
+        inversion H. contradiction.
+        assumption.
+Qed.
+
+Theorem in_domain_false_prop :
+  forall (k:N), in_domain k l = false <-> ~in_domain_prop T k l.
+Proof.
+  intros k. split.
+  - intros H1 H2. rewrite <- in_domain_true_prop in H2. rewrite H2 in H1.
+    discriminate H1.
+  - intros H1. destruct (in_domain k l) eqn:E.
+    + apply in_domain_true_prop in E. contradiction.
+    + reflexivity.
+Qed.
 
 End AssocListTheorems.
 
