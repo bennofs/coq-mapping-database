@@ -36,7 +36,7 @@ Fixpoint rev_assoc (p:T -> bool) (l:assoc_list) : list N :=
     | nil         => nil
     | (k,v) :: t => if p v then k :: rev_assoc p t else rev_assoc p t
   end.
-Global Arguments assoc : default implicits.
+Global Arguments rev_assoc : default implicits.
 
 Fixpoint merge (f:T -> T -> T) (l1:assoc_list) (l2:assoc_list) : assoc_list :=
   match l1 with
@@ -116,31 +116,20 @@ Lemma al_disjoint_app_split :
   forall (l1 l2 l3:assoc_list T),
     al_disjoint (l1 ++ l2) l3 -> al_disjoint l1 l3 /\ al_disjoint l2 l3.
 Proof.
-  intros l1 l2 l3. unfold al_disjoint. unfold in_domain. intros H. split;
-    intros k in_l12 in_l3;
-    destruct in_l12 as [v12 v_in_l12];
-    apply H with k;
-      try (exists v12; apply in_or_app);
-      tauto.
+  Hint Resolve <- in_domain_app_or.
+  unfold al_disjoint. intros l1 l2 l3 H. split; intros k P; apply H; eauto.
 Qed.
 
 Lemma al_disjoint_cons_not_elem :
   forall (l1 l2:assoc_list T) (k:N) (v:T),
     ~(in_domain k l2) /\ al_disjoint l1 l2 <-> al_disjoint ((k,v) :: l1) l2.
 Proof.
+  Hint Resolve in_eq.
+  Hint Resolve <- in_domain_inv.
   intros l1 l2 k v. split.
-    - intros P. destruct P as [not_in_l2 H].
-      unfold al_disjoint. unfold in_domain. intros any_k in_r.
-      destruct in_r as [vr vr_in_r].
-      apply in_inv in vr_in_r.
-      destruct vr_in_r as [E|in_l1].
-      + inversion E as [[ke ve]]. rewrite <- ke. assumption.
-      + apply H with (k := any_k). unfold in_domain. exists vr. assumption.
-    - intros H. split.
-      + unfold al_disjoint in H.
-        apply H. unfold in_domain. exists v. apply in_eq.
-      + replace ((k,v) :: l1) with (((k,v) :: nil) ++ l1) in H by reflexivity.
-        apply al_disjoint_app_split in H. apply H.
+  - unfold al_disjoint. destruct 1. intro. rewrite in_domain_inv.
+    destruct 1; subst; eauto.
+  - unfold al_disjoint. intros H. split; intros; try (apply H); eauto.
 Qed.
 
 Inductive al_invariant : assoc_list T -> Prop :=
@@ -156,8 +145,7 @@ Proof.
   - apply al_disjoint_nil_l.
   - destruct h as [k v]. apply al_disjoint_cons_not_elem. split.
     + inversion H as [|k' v' t' not_in_tl2 inv_tl2]. subst.
-      rewrite in_domain_app_or in not_in_tl2. intro not_in_l2. apply not_in_tl2.
-      tauto.
+      rewrite in_domain_app_or in not_in_tl2. auto.
     + apply IH. inversion H. assumption.
 Qed.
 
@@ -165,13 +153,13 @@ Lemma al_invariant_app_split :
   forall (l1 l2:assoc_list T),
     al_invariant (l1 ++ l2) -> al_invariant l1 /\ al_invariant l2.
 Proof.
+  Hint Constructors al_invariant.
+  Hint Resolve in_domain_app_or al_invariant_cons.
   intros l1 l2 H. induction l1 as [|h t IH].
-  - split. constructor. assumption.
-  - destruct h as [k v]. inversion H as [|k' v' t' not_in_tl2 inv_tl2]; subst. split.
-    + apply al_invariant_cons.
-      * intro not_in_t. apply not_in_tl2. apply in_domain_app_or. tauto.
-      * apply IH. assumption.
-    + apply IH. assumption.
+  - auto.
+  - destruct h as [k v]. inversion H as [|k' v' t' not_in_tl2 inv_tl2]; subst. split;
+      try (apply al_invariant_cons);
+      intuition auto.
 Qed.
 
 Lemma al_invariant_join_app :
@@ -180,15 +168,12 @@ Lemma al_invariant_join_app :
 Proof.
   intros l1 l2 inv_l1 inv_l2 dis. induction l1 as [|h t IH].
   - assumption.
-  - destruct h as [k v]. simpl. apply <- al_disjoint_cons_not_elem in dis.
-    destruct dis as [not_in_l2 dis_t_l2]. apply al_invariant_cons.
-    + inversion inv_l1 as [|k' v' t' not_in_t inv_t]. subst.
-      intros in_tl2. apply in_domain_app_or in in_tl2. destruct in_tl2 as [in_t | in_l2].
-      * apply not_in_t. assumption.
-      * apply not_in_l2. assumption.
-    + apply IH.
-      * inversion inv_l1. assumption.
-      * assumption.
+  - destruct h as [k v]. simpl.
+    inversion inv_l1. subst.
+    apply <- al_disjoint_cons_not_elem in dis.
+    apply al_invariant_cons.
+    + rewrite in_domain_app_or. intuition auto.
+    + apply IH; tauto.
 Qed.
 
 Lemma al_invariant_app_comm :
@@ -203,159 +188,217 @@ Qed.
 End InvariantDef.
 
 
-Section AssocListTheorems.
+Section EmptyTheorems.
 
 Variable T : Type.
-Variable l : assoc_list T.
-Hypothesis inv_l : al_invariant T l.
 
-Theorem empty_al_invariant : al_invariant T empty.
-Proof. intros. apply al_invariant_nil. Qed.
+Theorem assoc_empty : forall (k:N), assoc k (@empty T) = None.
+Proof. reflexivity. Qed.
 
-Lemma al_invariant_cons_snoc :
-  forall (l1 l2:assoc_list T) (h:N * T),
-    al_invariant T ((h :: l1) ++ l2) <-> al_invariant T (l1 ++ l2 ++ h :: nil).
+Theorem empty_invariant : al_invariant T empty.
+Proof. constructor. Qed.
+
+End EmptyTheorems.
+
+Section RemoveTheorems.
+
+Variable T : Type.
+
+Theorem remove_subset :
+  forall (l:assoc_list T) (k k':N), in_domain T k (remove k' l) -> in_domain T k l.
 Proof.
-  intros l1 l2 h. replace (h :: l1) with ((h :: nil) ++ l1) by reflexivity.
-  split.
-  - intros H.
-    rewrite app_assoc. apply al_invariant_app_comm. rewrite app_assoc. assumption.
-  - intros H.
-    rewrite <- app_assoc. apply al_invariant_app_comm. rewrite <- app_assoc. assumption.
+  Hint Resolve <- in_domain_inv.
+  intros l k k'. induction l as [|[k'' v] t IH].
+  - destruct 1. contradiction.
+  - simpl. destruct (N.eq_dec k'' k').
+    + auto.
+    + rewrite in_domain_inv. destruct 1; subst; auto.
 Qed.
 
-Lemma remove_al_invariant_helper :
-  forall (k:N) (l2:assoc_list T),
-    al_invariant T (l ++ l2) -> al_invariant T (remove k l ++ l2).
+Theorem remove_invariant :
+  forall (l:assoc_list T) (k:N), al_invariant T l -> al_invariant T (remove k l).
 Proof.
-  intros k. induction l as [|h t IH].
+  Hint Unfold not.
+  Hint Resolve remove_subset al_invariant_cons.
+  intros l k. induction l as [|[k' v] t IH].
   - trivial.
-  - intros l2 H. destruct h as [k' v]. simpl. destruct (N.eq_dec k' k) as [E|E].
-    + inversion H. assumption.
-    + rewrite al_invariant_cons_snoc. apply IH.
-      * apply al_invariant_app_split in H. destruct H as [Ha Hb].
-        inversion Ha. assumption.
-      * rewrite <- al_invariant_cons_snoc. assumption.
+  - inversion 1. subst. simpl. destruct (N.eq_dec k' k); intuition eauto.
 Qed.
 
-Theorem remove_al_invariant : forall (k:N), al_invariant T (remove k l).
+Theorem remove_preserve_other :
+  forall (l:assoc_list T) (k k':N),
+    k' <> k -> in_domain T k l -> in_domain T k (remove k' l).
 Proof.
-  intros. rewrite <- app_nil_r. apply remove_al_invariant_helper.
-  rewrite app_nil_r. assumption.
+  intros l k k' ineq. induction l as [|[k'' v] t IH].
+  - destruct 1. contradiction.
+  - simpl. rewrite in_domain_inv. destruct (N.eq_dec k'' k').
+    + subst. tauto.
+    + intuition auto.
 Qed.
 
-Theorem remove_not_in :
-  forall (k:N) (l2:assoc_list T), al_invariant T l2 -> ~in_domain T k (remove k l2).
+Theorem not_in_remove :
+  forall (l:assoc_list T) (k:N), al_invariant T l -> ~in_domain T k (remove k l).
 Proof.
-  unfold in_domain.
-  intros k l2 inv_l2 in_r. destruct in_r as [v in_r]. induction l2 as [|h t IH].
-  - inversion in_r.
-  - destruct h as [k' v']. simpl in in_r. destruct (N.eq_dec k' k) as [E|E].
-    + subst. inversion inv_l2 as [|k'' v'' t'' not_in_t inv_t]. subst. apply not_in_t.
-      exists v. assumption.
-    + apply IH.
-      * inversion inv_l2. assumption.
-      * inversion in_r. inversion H. contradiction. assumption.
+  intros l k inv_l. induction l as [|[k' v] t IH].
+  - destruct 1. contradiction.
+  - simpl. inversion inv_l. subst. destruct (N.eq_dec k' k); subst.
+    + auto.
+    + rewrite in_domain_inv. tauto.
 Qed.
 
-Theorem insert_al_invariant :
-  forall (k:N) (v:T), al_invariant T (insert k v l).
+End RemoveTheorems.
+
+Section InsertTheorems.
+
+Variable T : Type.
+
+Theorem insert_superset :
+  forall (l:assoc_list T) (k k':N) (v:T), 
+    in_domain T k l -> in_domain T k (insert k' v l).
 Proof.
-  intros. unfold insert. apply al_invariant_cons. apply remove_not_in. auto.
-  apply remove_al_invariant.
+  Hint Resolve <- in_domain_inv.
+  Hint Resolve remove_preserve_other.
+  intros. unfold insert. destruct (N.eq_dec k k'); auto.
 Qed.
 
-Theorem assoc_insert :
-  forall (k:N) (v:T), assoc k (insert k v l) = Some v.
+Theorem insert_invariant :
+  forall (l:assoc_list T) (k:N) (v:T), al_invariant T l -> al_invariant T (insert k v l).
 Proof.
-  intros k v. unfold insert. simpl. destruct (N.eq_dec k k).
-  - reflexivity.
-  - exfalso. apply n. reflexivity.
+  Hint Resolve al_invariant_cons remove_invariant not_in_remove.
+  intros. unfold insert. intuition auto.
 Qed.
+
+Theorem insert_preserve_other :
+  forall (l:assoc_list T) (k k':N) (v:T),
+    k' <> k -> in_domain T k (insert k' v l) -> in_domain T k l.
+Proof.
+  Hint Resolve remove_subset.
+  intros l k k' v ineq.  unfold insert. rewrite in_domain_inv. intuition eauto.
+Qed.
+
+Theorem in_insert :
+  forall (l:assoc_list T) (k:N) (v:T), in_domain T k (insert k v l).
+Proof. intros. unfold insert. apply in_domain_inv. tauto. Qed.
+
+End InsertTheorems.
+
+Section AssocTheorems.
+
+Variable T : Type.
 
 Theorem assoc_in :
-  forall (k:N) (l2:assoc_list T),
-    in_domain T k l2 <-> (exists v, assoc k l2 = Some v).
+  forall (l:assoc_list T) (k:N), (exists v, assoc k l = Some v) <-> in_domain T k l.
 Proof.
-  intros k l2. split.
-  - intros H. induction l2 as [|h t IH].
-    + unfold in_domain in H. destruct H. contradiction.
-    + destruct h as [k' v]. apply in_domain_inv in H. simpl.
-      destruct (N.eq_dec k' k).
-      * eauto.
-      * destruct IH as [v']. destruct H.
-          contradiction.
-          assumption.
-          eauto.
-  - intros H. induction l2 as [|h t IH].
-    + inversion H as [v H']. inversion H'.
-    + destruct h as [k' v]. simpl in H. apply in_domain_inv.
-      destruct (N.eq_dec k' k); auto.
+  Hint Resolve <- in_domain_inv.
+  intros l k. split.
+  - induction l as [|[k' v'] t IH].
+    + destruct 1. discriminate.
+    + simpl. destruct (N.eq_dec k' k); subst; auto.
+  - induction l as [|[k' v'] t IH].
+    + destruct 1. contradiction.
+    + rewrite in_domain_inv. simpl. destruct (N.eq_dec k' k); subst; intuition eauto.
 Qed.
 
 Theorem assoc_not_in :
-  forall (k:N) (l2:assoc_list T),
-    ~in_domain T k l2 <-> assoc k l2 = None.
+  forall (l:assoc_list T) (k:N), assoc k l = None <-> ~in_domain T k l.
 Proof.
-  Hint Resolve <- assoc_in.
-  intros k l2. split.
-  - intros not_in. destruct (assoc k l2) eqn:E.
-    + exfalso. unfold not in not_in. eauto.
+  intros. split.
+  - destruct (assoc k l) eqn:A.
+    + discriminate 1.
+    + intros. rewrite <- assoc_in. rewrite A. destruct 1. discriminate.
+  - destruct (assoc k l) eqn:A.
+    + intros.
+      apply ex_intro with (P := fun x => assoc k l = Some x) in A.
+      apply assoc_in in A. contradiction.
     + reflexivity.
-  - intros assoc_none H. apply assoc_in in H. destruct H as [v H].
-    rewrite H in assoc_none. discriminate.
 Qed.
 
-Theorem assoc_remove :
-  forall (k:N), assoc k (remove k l) = None.
-Proof. intros k. apply assoc_not_in. apply remove_not_in. auto. Qed.
+End AssocTheorems.
 
-Theorem assoc_empty :
-  forall (k:N), assoc k (@empty T) = None.
-Proof. reflexivity. Qed.
+Section MergeTheorems.
 
-Theorem remove_subset :
-  forall (k k':N) (l2:assoc_list T), in_domain T k (remove k' l2) -> in_domain T k l2.
-Proof.
-  Hint Resolve <- in_domain_inv.
-  intros k k' l2. intros H. induction l2 as [|h t IH].
-  - inversion H. contradiction.
-  - destruct h as [k'' v]. simpl in H. destruct (N.eq_dec k'' k') as [eq|ineq];
-      try (apply in_domain_inv in H; destruct H); 
-      auto.
-Qed.
+Variable T : Type.
 
-Theorem merge_not_in_domain :
-  forall (f:T -> T -> T) (k:N) (l1 l2:assoc_list T),
+Theorem merge_no_new_elements :
+  forall (l1 l2:assoc_list T) (f:T -> T -> T) (k:N),
     ~in_domain T k l1 -> ~in_domain T k l2 -> ~in_domain T k (merge f l1 l2).
+Proof.
+  Hint Unfold not.
+  Hint Resolve remove_subset.
+  intros l1 l2 f k H.
+  generalize dependent l2.
+  induction l1 as [|[k' v] t IH].
+  - intros. assumption.
+  - simpl. intros l2. rewrite in_domain_inv in H.
+    destruct (assoc k' l2) eqn:A; rewrite in_domain_inv; intuition eauto.
+Qed.
+
+Theorem merge_invariant :
+  forall (l1 l2:assoc_list T) (f:T -> T -> T),
+    al_invariant T l1 -> al_invariant T l2 -> al_invariant T (merge f l1 l2).
+Proof.
+  Hint Resolve al_invariant_cons merge_no_new_elements not_in_remove remove_invariant.
+  intros l1 l2 f inv_l1.
+  generalize dependent l2.
+  induction l1 as [|[k v] t IH].
+  - intros. assumption.
+  - intros l2 inv_l2. inversion inv_l1. subst. simpl. destruct (assoc k l2) eqn:A.
+    + apply ex_intro with (P := fun x => assoc k l2 = Some x) in A.
+      apply assoc_in in A. auto.
+    + apply assoc_not_in in A. auto.
+Qed.
+
+Theorem merge_superset_first :
+  forall (l1 l2:assoc_list T) (f:T -> T -> T) (k:N),
+    in_domain T k l1 -> in_domain T k (merge f l1 l2).
 Proof.
   Hint Resolve <- in_domain_inv.
   Hint Resolve remove_subset.
-  intros f k l1. induction l1 as [|h t IH].
-  - intros. assumption.
-  - intros l2 not_in_l1 not_in_l2. destruct h as [k' v]. simpl.
-    unfold not in IH. destruct (assoc k' l2) as [v'|].
-    + intros in_merge. apply in_domain_inv in in_merge.
-      destruct in_merge as [eq|H].
-      * auto.
-      * apply IH with (remove k' l2); eauto.
-    + intros in_merge. apply in_domain_inv in in_merge.
-      destruct in_merge as [eq|H].
-      * auto.
-      * apply IH with l2; auto.
+  intros l1 l2 f k.
+  generalize dependent l2.
+  - induction l1 as [|[k' v] t IH].
+    + destruct 1. contradiction.
+    + intros l2. rewrite in_domain_inv. intros H. simpl.
+      destruct (assoc k' l2) eqn:A; intuition auto.
 Qed.
 
-End AssocListTheorems.
-
-Theorem merge_al_invariant :
-  forall (T:Type) (l l2:assoc_list T) (f:T -> T -> T),
-    al_invariant T l -> al_invariant T l2 -> al_invariant T (merge f l l2).
+Theorem merge_superset_second :
+  forall (l1 l2:assoc_list T) (f:T -> T -> T) (k:N),
+    in_domain T k l2 -> in_domain T k (merge f l1 l2).
 Proof.
-  Hint Resolve <- assoc_not_in.
-  Hint Resolve merge_not_in_domain remove_not_in remove_al_invariant.
-  intros T l. induction l as [|h t IH].
-  - intros. assumption.
-  - intros l2 f inv_l inv_l2. destruct h as [k v]. simpl. 
-    destruct (assoc k l2) as [v2|] eqn:E;
-      inversion inv_l; apply al_invariant_cons; eauto.
+  Hint Resolve <- in_domain_inv.
+  Hint Resolve remove_preserve_other.
+  intros l1 l2 f k.
+  generalize dependent l2.
+  - induction l1 as [|[k' v] t IH].
+    + trivial.
+    + intros l2. intros H. simpl.
+      destruct (assoc k' l2) eqn:A; destruct (N.eq_dec k' k); subst; auto.
 Qed.
+
+End MergeTheorems.
+
+Section RevAssocTheorems.
+
+Variable T : Type.
+
+Theorem rev_assoc_assoc :
+  forall (f:T -> bool) (l:assoc_list T) (k:N),
+    al_invariant T l ->
+    (In k (rev_assoc f l) <-> exists v, assoc k l = Some v /\ f v = true).
+Proof.
+  intros f l k inv_l. split.
+  - generalize dependent k. induction l as [|[k' v'] t IH].
+    + contradiction.
+    + intros k. simpl. destruct (N.eq_dec k' k).
+      * subst. destruct (f v') eqn:fv.
+        intros. exists v'. split; auto.
+        intros H. inversion inv_l. destruct IH with k as [v'' [A FVT]].
+        assumption.
+        assumption.
+        apply ex_intro with (P := fun x => assoc k t = Some x) in A.
+        apply assoc_in in A. contradiction.
+      * destruct (f v') eqn:fv. intros H. apply in_inv in H. inversion inv_l. 
+        intuition eauto.
+        intros H. inversion inv_l. auto.
+Abort.
