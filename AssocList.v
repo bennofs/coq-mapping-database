@@ -677,6 +677,13 @@ Section Filter.
       + auto.
   Qed.
 
+  Theorem al_filter_In :
+    forall (f:N -> T -> bool) (l:assoc_list T) (k:N) (v:T),
+      (f k v = true /\ In (k,v) l) <-> In (k,v) (al_filter f l).
+  Proof.
+    intros. unfold al_filter. rewrite filter_In. tauto.
+  Qed.
+
 End Filter.
 
 Section RevAssoc.
@@ -841,6 +848,15 @@ Section Map.
     intros l f inv_l. induction l as [|[k v] t IH].
     - simpl. auto.
     - simpl. inversion inv_l. subst. apply al_invariant_cons; eauto.
+  Qed.
+
+  Theorem In_map_iff :
+    forall (f:N -> A -> B) (l:assoc_list A) (b:B) (k:N),
+      In (k, b) (al_map f l) <-> exists a : A, b = f k a /\ In (k,a) l.
+  Proof.
+    intros f l b k. unfold al_map. rewrite in_map_iff. split.
+    - destruct 1 as [x [E H]]. destruct x. inversion E. subst. eauto.
+    - destruct 1 as [a [E H]]. exists (k,a). subst. auto.
   Qed.
 
 End Map.

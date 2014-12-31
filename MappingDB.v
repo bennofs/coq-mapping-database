@@ -106,93 +106,6 @@ Section Delete.
 
 End Delete.
 
-Section Union.
-
-  Definition db_union : mapping_db -> mapping_db -> mapping_db :=
-    al_merge (@al_union _).
-
-  Theorem merge_In_first :
-    forall (T:Type) (l1 l2:assoc_list T) (f:T -> T -> T) (v:T) (k:N),
-      al_invariant l1 -> al_invariant l2 -> ~in_domain k l2 -> In (k,v) (al_merge f l1 l2) -> In (k,v) l1.
-  Proof.
-    Hint Resolve In_in_domain in_eq in_cons merge_invariant.
-    Hint Resolve <- insert_merge_preserve_other.
-    intros T l1 l2 f v k inv_l1 inv_l2 not_in_l1 in_merge.
-    induction l1 as [|[k' v'] t IH].
-    - exfalso. eauto.
-    - simpl in in_merge. inversion inv_l1. subst. destruct (N.eq_dec k k').
-      + subst k'. apply In_insert_merge_inv in in_merge as [[_ ve]|contains_merge].
-        * subst. eauto.
-        * destruct contains_merge as [x [x_in _]]. exfalso.
-          eapply merge_no_new_elements with (l1 := t) (l2 := l2); eauto.
-        * eauto.
-      + apply insert_merge_preserve_other in in_merge; eauto.
-  Qed.
-
-  Theorem merge_In_second :
-    forall (T:Type) (l1 l2:assoc_list T) (f:T -> T -> T) (v:T) (k:N),
-      ~in_domain k l1 -> In (k,v) (al_merge f l1 l2) -> In (k,v) l2.
-  Proof.
-    intros T l1 l2 f v k not_in_l2 in_merge.
-    induction l1 as [|[k' v'] t IH].
-    - assumption.
-    - simpl in in_merge. apply not_in_domain_inv in not_in_l2 as [ineq_k not_in_t].
-      apply insert_merge_preserve_other in in_merge; eauto.
-  Qed.
-
-  Theorem merge_In_both :
-    forall (T:Type) (l1 l2:assoc_list T) (f:T -> T -> T) (v:T) (k:N),
-      al_invariant l1 -> al_invariant l2 ->
-      in_domain k l1 -> in_domain k l2 -> In (k,v) (al_merge f l1 l2) ->
-      exists x y, f x y = v /\ In (k,x) l1 /\ In (k,y) l2.
-  Proof.
-    Hint Resolve merge_superset_second merge_invariant In_in_domain in_cons.
-    Hint Resolve -> insert_merge_preserve_other.
-    intros T l1 l2 f v k inv_l1 inv_l2 in_l1 in_l2 in_merge.
-    induction l1 as [|[k' v'] t IH].
-    - destruct in_l1. contradiction.
-    - destruct in_l1 as [x [E | in_t]].
-      + inversion E. subst k'. subst x. clear E.
-        simpl in in_merge. apply In_insert_merge_inv in in_merge.
-        * destruct in_merge as [[not_in_merge ve]|contains_t].
-          { exfalso. eauto. }
-          { unfold contains in contains_t.
-            destruct contains_t as [a [in_merge fe]].
-            clear IH. exists v'. exists a.
-            inversion inv_l1. subst. apply merge_In_second in in_merge;
-              repeat split; auto. }
-        * inversion inv_l1. subst. auto.
-      + inversion inv_l1. subst. simpl in in_merge.
-        destruct (N.eq_dec k k').
-        * subst. exfalso. eauto.
-        * destruct IH as [x' [y' [fe' [in_t' in_l2']]]]; subst; repeat eexists; eauto.
-  Qed.
-
-  Theorem db_union_In_second :
-    forall (db1 db2:mapping_db) (ko:kernel_object) (pd sel:N),
-      al_invariant db1 -> al_invariant db2 ->
-      ~in_mapping_db pd sel db1 -> has_mapping pd sel ko (db_union db1 db2) ->
-      has_mapping pd sel ko db2.
-  Proof.
-    Hint Unfold contains.
-    Hint Resolve In_in_domain.
-    unfold has_mapping. unfold db_union. unfold contains.
-    intros db1 db2 ko pd sel inv_db1 inv_db2 not_in_db1 in_union.
-    destruct in_union as [pdm [in_union in_pdm]].
-    destruct (in_domain_dec _ db1 pd) as [pd_in_db1|pd_not_in_db1].
-    - destruct (in_domain_dec _ db2 pd) as [pd_in_db2|pd_not_in_db2].
-      + apply merge_In_both with (1 := inv_db1) (2 := inv_db2) (3 := pd_in_db1) (4 := pd_in_db2) in in_union.
-        destruct in_union as [x [y [pdme [in_db1 in_db2]]]].
-          subst pdm. destruct (in_domain_dec _ x sel).
-          { exfalso. apply not_in_db1. unfold in_mapping_db. unfold contains. eauto. }
-          { apply merge_In_second in in_pdm; try (eexists; split); eauto. }
-      + apply merge_In_first with (1 := inv_db1) (2 := inv_db2) (3 := pd_not_in_db2) in in_union. exfalso. apply not_in_db1. unfold in_mapping_db. eauto.
-    - apply merge_In_second with (1 := pd_not_in_db1) in in_union.
-      eauto.
-  Qed.
-
-End Union.
-
 Section DeleteAll.
 
   Definition delete_all_except
@@ -209,22 +122,6 @@ Section DeleteAll.
                                                  (negb (existsb (N.eqb sel) exc))))
                            pdm
          end).
-
-  Theorem In_map_iff :
-    forall (A B:Type) (f:N -> A -> B) (l:assoc_list A) (b:B) (k:N),
-      In (k, b) (al_map f l) <-> exists a : A, b = f k a /\ In (k,a) l.
-  Proof.
-    intros A B f l b k. unfold al_map. rewrite in_map_iff. split.
-    - destruct 1 as [x [E H]]. destruct x. inversion E. subst. eauto.
-    - destruct 1 as [a [E H]]. exists (k,a). subst. auto.
-  Qed.
-
-  Theorem al_filter_In :
-    forall (T:Type) (f:N -> T -> bool) (l:assoc_list T) (k:N) (v:T),
-      (f k v = true /\ In (k,v) l) <-> In (k,v) (al_filter f l).
-  Proof.
-    intros. unfold al_filter. rewrite filter_In. tauto.
-  Qed.
 
   Theorem delete_all_except_deletes :
     forall (db:mapping_db) (pd:N) (sel:N) (ko:kernel_object) (f:kernel_object -> bool)
