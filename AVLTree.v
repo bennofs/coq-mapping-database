@@ -47,12 +47,102 @@ Fixpoint In {T:Type} (v:N * T) (t:avl_tree T) : Prop :=
     | avl_branch _ l v' r => v = v' \/ In v l \/ In v r
   end.
 
-Section Empty.
+Theorem not_In_empty : forall (T:Type) (k:N) (v:T), ~In (k,v) avl_empty.
+Proof. intros. destruct 1. Qed.
+
+Section Height.
+
   Variable T : Type.
 
-  Theorem not_In_empty : forall (k:N) (v:T), ~In (k,v) avl_empty.
-  Proof. intros.  destruct 1. Qed.
-End Empty.
+  Fixpoint avl_height (t:avl_tree T) : N :=
+    match t with
+      | avl_empty => 0
+      | avl_branch _ l _ r => N.max (avl_height l) (avl_height r) + 1
+    end.
+
+  Example avl_height_ex_empty : avl_height avl_empty = 0.
+  Proof. reflexivity. Qed.
+
+  Example avl_height_ex_1 :
+    forall a b c d : T,
+      avl_height
+        (avl_branch
+           negative
+           (avl_branch zero avl_empty (1,a) avl_empty)
+           (2,b)
+           (avl_branch
+              positive
+              (avl_branch zero avl_empty (3,c) avl_empty)
+              (4,d)
+              avl_empty)) = 3.
+  Proof. reflexivity. Qed.
+
+End Height.
+
+Section Invariants.
+
+  Variable T : Type.
+
+  Fixpoint forall_keys (f:N -> Prop) (t:avl_tree T) : Prop :=
+    match t with
+      | avl_empty => True
+      | avl_branch _ l (k,_) r => f k /\ forall_keys f l /\ forall_keys f r
+    end.
+  Global Arguments forall_keys : default implicits.
+
+  Definition all_keys_smaller (k:N) (t:avl_tree T) : Prop := forall_keys (N.gt k) t.
+  Definition all_keys_greater (k:N) (t:avl_tree T) : Prop := forall_keys (N.lt k) t.
+  Global Arguments all_keys_smaller : default implicits.
+  Global Arguments all_keys_greater : default implicits.
+
+  Theorem all_keys_greater_chain :
+    forall (k k':N) (t:avl_tree T),
+      k' < k -> forall_keys (N.lt k) t -> forall_keys (N.lt k') t.
+  Proof.
+    Hint Resolve N.lt_trans.
+    intros k k' t ineq H.
+    induction t as [b l IHl [k'' v] r IHr|];
+      hnf in *;
+      intuition eauto.
+  Qed.
+
+  Theorem all_keys_smaller_chain :
+    forall (k k':N) (t:avl_tree T),
+      k < k' -> forall_keys (N.gt k) t -> forall_keys (N.gt k') t.
+  Proof.
+    Hint Resolve N.lt_trans.
+    intros k k' t ineq H.
+    induction t as [b l IHl [k'' v] r IHr|];
+      hnf in *;
+      rewrite_all N.gt_lt_iff;
+      intuition eauto.
+  Qed.
+
+  Lemma invert_tuple_eq :
+    forall (A B:Type) (a a':A) (b b':B),
+      (a,b) = (a',b') <-> a = a' /\ b = b'.
+  Proof. split; inversion 1; subst; auto. Qed.
+
+  Theorem forall_keys_In_iff :
+    forall (P:N -> Prop) (t:avl_tree T),
+      forall_keys P t <-> (forall k v, In (k,v) t -> P k).
+  Proof.
+    intros P t. induction t as [b l IHl [k v] r IHr|].
+    - simpl. rewrite IHl. rewrite IHr. setoid_rewrite invert_tuple_eq.
+      split; intuition (subst; eauto).
+    - split; simpl; intuition auto.
+  Qed.
+
+  Fixpoint binary_tree_invariant (t:avl_tree T) : Prop :=
+    match t with
+      | avl_empty => True
+      | avl_branch _ l (k,_) r =>
+        all_keys_smaller k l /\ all_keys_greater k r /\
+        binary_tree_invariant l /\ binary_tree_invariant r
+    end.
+  Global Arguments binary_tree_invariant : default implicits.
+
+End Invariants.
 
 Section Node.
 
@@ -91,7 +181,8 @@ Section Node.
   Let height_change (s:sign + sign) : sign := match s with | inr x => x | inl x => x end.
 
   (* Rotation for when the right subtree is higher *)
-  Let rotate_right (removed:bool) (l:avl_tree T) (p:N * T) (r:avl_tree T) :=
+  Let rotate_right (removed:bool) (l:avl_tree T) (p:N * T) (r:avl_tree T)
+  : avl_tree T * sign :=
     match r with
       | avl_branch positive (avl_branch rlb rll rlp rlr) rp rr =>
         ( avl_branch
@@ -110,11 +201,22 @@ Section Node.
             rr
           , if removed && beq_sign b negative then negative else zero
         )
-      | avl_empty => (avl_empty, zero)
+      | avl_empty =>
+        (* This branch should never happen, because if the right subtree has height zero,
+         * it cannot be higher than the left subtree.
+         * In this case, we still return the tree without doing a rotation, because that
+         * way the invariant of the tree is preserved, which makes the proofs simpler.
+         *)
+        let b := match l with
+                   | avl_empty => zero
+                   | _ => positive
+                 end
+        in (avl_branch b l p r, zero)
     end.
 
   (* Rotation for when the left subtree is higher *)
-  Let rotate_left (removed:bool) (l:avl_tree T) (p:N * T) (r:avl_tree T) :=
+  Let rotate_left (removed:bool) (l:avl_tree T) (p:N * T) (r:avl_tree T)
+  : avl_tree T * sign :=
     match l with
       | avl_branch negative ll lp (avl_branch lrb lrl lrp lrr) =>
         ( avl_branch
@@ -133,7 +235,13 @@ Section Node.
             (avl_branch (sign_negate b') lr p r)
           , if removed then negative else zero
         )
-      | avl_empty => (avl_empty, zero)
+      | avl_empty =>
+        (* See comment for this branch in [rotate_right] *)
+        let b := match r with
+                   | avl_empty => zero
+                   | _         => negative
+                 end
+        in (avl_branch b avl_empty p r, zero)
     end.
 
   (* This function recreates a tree node after one of it's subtrees changed.
@@ -189,6 +297,87 @@ Section Node.
        end.
   Global Arguments node : default implicits.
 
+  Lemma rotate_left_binary_tree_invariant :
+    forall (b:bool) (k:N) (v:T) (l r:avl_tree T),
+      binary_tree_invariant l -> binary_tree_invariant r ->
+      all_keys_smaller k l -> all_keys_greater k r ->
+      binary_tree_invariant (fst (rotate_left b l (k,v) r)).
+  Proof.
+    Hint Resolve all_keys_smaller_chain all_keys_greater_chain.
+    intros b k v l r bt_inv_l bt_inv_r l_smaller r_greater.
+    destruct l as [lb ll [lk lv] lr|].
+    - simpl. destruct lb; destruct lr as [lrb lrl [lrk lrkv] lrr|];
+          simpl in *; unfold all_keys_smaller, all_keys_greater in *; simpl in *;
+          rewrite_all N.gt_lt_iff;
+          intuition eauto.
+    - simpl. auto.
+  Qed.
+
+  Lemma rotate_right_binary_tree_invariant :
+    forall (b:bool) (k:N) (v:T) (l r:avl_tree T),
+      binary_tree_invariant l -> binary_tree_invariant r ->
+      forall_keys (N.gt k) l -> forall_keys (N.lt k) r ->
+      binary_tree_invariant (fst (rotate_right b l (k,v) r)).
+  Proof.
+    Hint Resolve all_keys_smaller_chain all_keys_greater_chain.
+    intros b k v l r bt_inv_l bt_inv_r l_smaller r_greater.
+    destruct r as [rb rl [rk rv] rr|].
+    - simpl. destruct rb; destruct rl as [rlb rll [rlk rlkv] rlr|];
+        simpl in *; unfold all_keys_greater, all_keys_smaller in *; simpl in *;
+        rewrite_all N.gt_lt_iff; intuition eauto.
+    - simpl. auto.
+  Qed.
+
+  Lemma rotate_left_same_elements :
+    forall (b:bool) (k k':N) (v v':T) (l r:avl_tree T),
+      In (k',v') (avl_branch zero l (k,v) r) <->
+      In (k',v') (fst (rotate_left b l (k,v) r)).
+  Proof.
+    intros b k k' v v' l r.
+    destruct l as [lb ll [lk lv] lr|].
+    - simpl. destruct lb;
+        destruct lr as [lrb lrl [lrk lrv] lrr|];
+        simpl in *; rewrite_all invert_tuple_eq;
+        intuition (subst; assumption || discriminate).
+    - simpl. reflexivity.
+  Qed.
+
+  Lemma rotate_right_same_elements :
+    forall (b:bool) (k k':N) (v v':T) (l r:avl_tree T),
+      In (k',v') (avl_branch zero l (k,v) r) <->
+      In (k',v') (fst (rotate_right b l (k,v) r)).
+  Proof.
+    intros b k k' v v' l r.
+    destruct r as [rb rl [rk rv] rr|].
+    - simpl. destruct rb;
+        destruct rl as [rlb rll [rlk rlv] rlr|];
+        simpl in *; rewrite_all invert_tuple_eq;
+        intuition (subst; assumption || discriminate).
+    - simpl. reflexivity.
+  Qed.
+
+  Theorem node_binary_tree_invariant :
+    forall (b:sign) (s:sign + sign) (l r:avl_tree T) (k:N) (v:T),
+      binary_tree_invariant l -> binary_tree_invariant r ->
+      forall_keys (N.gt k) l -> forall_keys (N.lt k) r ->
+      binary_tree_invariant (fst (node b s l (k,v) r)).
+  Proof.
+    Hint Resolve rotate_right_binary_tree_invariant rotate_left_binary_tree_invariant.
+    intros b s l r k v bt_inv_l bt_inv_r l_smaller r_greater. unfold node.
+    destruct s as [s|s]; destruct s; destruct b; simpl; auto.
+  Qed.
+
+  Theorem node_same_elements :
+    forall (b:sign) (s:sign + sign) (l r:avl_tree T) (k k':N) (v v':T),
+      (k',v') = (k,v) \/ In (k',v') l \/ In (k',v') r <->
+      In (k',v') (fst (node b s l (k,v) r)).
+  Proof.
+    Hint Rewrite <- invert_tuple_eq rotate_right_same_elements rotate_left_same_elements : core.
+    intros b s l r k k' v v'.
+    destruct s as [s|s]; destruct s; destruct b; unfold node; simpl;
+    autorewrite with core; simpl; intuition (subst; auto).
+  Qed.
+
 End Node.
 
 Section Insert.
@@ -240,6 +429,65 @@ Section Insert.
       avl_insert 3 c (avl_insert 2 b (avl_insert 4 d (avl_insert 1 a avl_empty))) =
       avl_insert 3 c (avl_insert 4 d (avl_insert 2 b (avl_insert 1 a avl_empty))).
   Proof. intros. reflexivity. Qed.
+
+  Theorem insert_In :
+    forall (k:N) (v:T) (t:avl_tree T),
+      In (k,v) (avl_insert k v t).
+  Proof.
+    Hint Resolve -> node_same_elements.
+    intros k v t. induction t as [b l IHl [k' v'] r IHr|].
+    - unfold avl_insert in *. simpl. destruct (N.compare k k').
+      + simpl. tauto.
+      + destruct (avl_insert_go k v l). auto.
+      + destruct (avl_insert_go k v r). auto.
+    - simpl. auto.
+  Qed.
+
+  Theorem insert_preserve_other :
+    forall (k k':N) (v v':T) (t:avl_tree T),
+      k <> k' -> (In (k,v) t <-> In (k,v) (avl_insert k' v' t)).
+  Proof.
+    Hint Rewrite invert_tuple_eq : core.
+    Hint Rewrite <- node_same_elements : core.
+    intros k k' v v' t ineq. induction t as [b l IHl [k'' v''] r IHr|].
+    - unfold avl_insert in *. simpl. destruct (N.compare k' k'') eqn:E.
+      + apply N.compare_eq_iff in E. subst k''. simpl. rewrite_all invert_tuple_eq.
+        split; intuition (assumption || (exfalso; auto)).
+      + destruct (avl_insert_go k' v' l). simpl in *.
+        autorewrite with core. rewrite IHl. reflexivity.
+      + destruct (avl_insert_go k' v' r). simpl in *.
+        autorewrite with core. rewrite IHr. reflexivity.
+    - simpl. autorewrite with core. intuition auto.
+  Qed.
+
+  Theorem insert_forall_keys :
+    forall (k:N) (v:T) (t:avl_tree T) (P:N -> Prop),
+      forall_keys P t -> P k -> forall_keys P (avl_insert k v t).
+  Proof.
+    Hint Resolve <- insert_preserve_other.
+    setoid_rewrite forall_keys_In_iff. intros k v t P forall_t for_P k' v'.
+    destruct (N.eq_dec k k'); subst; eauto.
+  Qed.
+
+  Theorem insert_binary_tree_invariant :
+    forall (k:N) (v:T) (t:avl_tree T),
+      binary_tree_invariant t -> binary_tree_invariant (avl_insert k v t).
+  Proof.
+    Hint Resolve node_binary_tree_invariant insert_forall_keys.
+    Hint Resolve -> N.gt_lt_iff.
+    Hint Resolve <- N.gt_lt_iff.
+    Hint Unfold all_keys_greater all_keys_smaller.
+    intros k v t bt_inv_t. induction t as [b l IHl [k' v'] r IHr|].
+    - unfold avl_insert in *. simpl. destruct (N.compare_spec k k') as [C|C|C].
+      + simpl in *. subst k'. auto.
+      + destruct (avl_insert_go k v l) as [a s] eqn:X.
+        replace a with (avl_insert k v l) in * by (unfold avl_insert; rewrite X; auto).
+        simpl in *. autounfold in *. intuition auto.
+      + destruct (avl_insert_go k v r) as [a s] eqn:X.
+        replace a with (avl_insert k v r) in * by (unfold avl_insert; rewrite X; auto).
+        simpl in *. autounfold in *. intuition auto.
+    - simpl. auto.
+  Qed.
 
 End Insert.
 
