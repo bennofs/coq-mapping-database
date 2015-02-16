@@ -47,6 +47,9 @@ Fixpoint In {T:Type} (v:N * T) (t:avl_tree T) : Prop :=
     | avl_branch _ l v' r => v = v' \/ In v l \/ In v r
   end.
 
+Definition avl_singleton {T:Type} (k:N) (v:T) : avl_tree T :=
+  avl_branch zero avl_empty (k,v) avl_empty.
+
 Theorem not_In_empty : forall (T:Type) (k:N) (v:T), ~In (k,v) avl_empty.
 Proof. intros. destruct 1. Qed.
 
@@ -68,11 +71,11 @@ Section Height.
       avl_height
         (avl_branch
            negative
-           (avl_branch zero avl_empty (1,a) avl_empty)
+           (avl_singleton 1 a)
            (2,b)
            (avl_branch
               positive
-              (avl_branch zero avl_empty (3,c) avl_empty)
+              (avl_singleton 3 c)
               (4,d)
               avl_empty)) = 3.
   Proof. reflexivity. Qed.
@@ -233,7 +236,7 @@ Section Node.
             ll
             lp
             (avl_branch (sign_negate b') lr p r)
-          , if removed then negative else zero
+          , if removed && beq_sign b positive then negative else zero
         )
       | avl_empty =>
         (* See comment for this branch in [rotate_right] *)
@@ -530,11 +533,11 @@ Section Remove.
           | Lt => let (l',s) := avl_remove_go k l in node b (inl s) l' (k',v') r
           | Gt => let (r',s) := avl_remove_go k r in node b (inr s) l (k',v') r'
           | Eq =>
-            match l with
-              | avl_empty => (r, negative)
-              | avl_branch lb ll lp lr =>
-                let '(p', (l',s)) := avl_remove_minimum_go lb ll lp lr in
-                node b (inl s) l' p' r
+            match r with
+              | avl_empty => (l, negative)
+              | avl_branch rb rl rp rr =>
+                let '(p', (r',s)) := avl_remove_minimum_go rb rl rp rr in
+                node b (inr s) l p' r'
             end
         end
     end.
@@ -544,7 +547,7 @@ Section Remove.
   Example avl_remove_ex1 :
     forall a b c : T,
       avl_remove 2 (avl_insert 1 a (avl_insert 2 b (avl_insert 3 c avl_empty))) =
-      avl_branch negative avl_empty (1,a) (avl_insert 3 c avl_empty).
+      avl_branch positive (avl_insert 1 a avl_empty) (3,c) avl_empty.
   Proof. reflexivity. Qed.
 
   Example avl_remove_ex2 :
@@ -555,6 +558,33 @@ Section Remove.
       avl_insert 1 a (avl_insert 4 d (avl_insert 3 c avl_empty)).
   Proof. reflexivity. Qed.
 
+  Example avl_remove_ex3 :
+    forall a b c d e f g h : T,
+      avl_remove
+        4
+        (avl_branch
+           positive
+           (avl_branch
+              positive
+              (avl_branch
+                 zero
+                 (avl_singleton 1 a)
+                 (2,b)
+                 (avl_singleton 3 c))
+              (4,d)
+              (avl_singleton 5 e))
+           (6,f)
+           (avl_branch negative avl_empty (7,g) (avl_singleton 8 h)))
+      = avl_branch
+          positive
+          (avl_branch
+             negative
+             (avl_singleton 1 a)
+             (2,b)
+             (avl_branch positive (avl_singleton 3 c) (5,e) avl_empty))
+          (6,f)
+          (avl_branch negative avl_empty (7,g) (avl_singleton 8 h)).
+  Proof. reflexivity. Qed.
 End Remove.
 
 Section Lookup.
