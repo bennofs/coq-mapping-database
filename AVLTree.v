@@ -89,14 +89,10 @@ Section Invariants.
   Fixpoint forall_keys (f:N -> Prop) (t:avl_tree T) : Prop :=
     match t with
       | avl_empty => True
-      | avl_branch _ l (k,_) r => f k /\ forall_keys f l /\ forall_keys f r
+      | avl_branch _ l p r => f (fst p) /\ forall_keys f l /\ forall_keys f r
     end.
   Global Arguments forall_keys : default implicits.
 
-  Definition all_keys_smaller (k:N) (t:avl_tree T) : Prop := forall_keys (N.gt k) t.
-  Definition all_keys_greater (k:N) (t:avl_tree T) : Prop := forall_keys (N.lt k) t.
-  Global Arguments all_keys_smaller : default implicits.
-  Global Arguments all_keys_greater : default implicits.
 
   Theorem all_keys_greater_chain :
     forall (k k':N) (t:avl_tree T),
@@ -128,19 +124,18 @@ Section Invariants.
 
   Theorem forall_keys_In_iff :
     forall (P:N -> Prop) (t:avl_tree T),
-      forall_keys P t <-> (forall k v, In (k,v) t -> P k).
+      forall_keys P t <-> (forall p, In p t -> P (fst p)).
   Proof.
-    intros P t. induction t as [b l IHl [k v] r IHr|].
-    - simpl. rewrite IHl. rewrite IHr. setoid_rewrite invert_tuple_eq.
-      split; intuition (subst; eauto).
+    intros P t. induction t as [b l IHl p r IHr|].
+    - simpl. rewrite IHl. rewrite IHr. split; intuition (subst; eauto).
     - split; simpl; intuition auto.
   Qed.
 
   Fixpoint binary_tree_invariant (t:avl_tree T) : Prop :=
     match t with
       | avl_empty => True
-      | avl_branch _ l (k,_) r =>
-        all_keys_smaller k l /\ all_keys_greater k r /\
+      | avl_branch _ l p r =>
+        forall_keys (N.gt (fst p)) l /\ forall_keys (N.lt (fst p)) r /\
         binary_tree_invariant l /\ binary_tree_invariant r
     end.
   Global Arguments binary_tree_invariant : default implicits.
@@ -301,84 +296,96 @@ Section Node.
   Global Arguments node : default implicits.
 
   Lemma rotate_left_binary_tree_invariant :
-    forall (b:bool) (k:N) (v:T) (l r:avl_tree T),
+    forall (b:bool) (p:N * T) (l r:avl_tree T),
       binary_tree_invariant l -> binary_tree_invariant r ->
-      all_keys_smaller k l -> all_keys_greater k r ->
-      binary_tree_invariant (fst (rotate_left b l (k,v) r)).
+      forall_keys (N.gt (fst p)) l -> forall_keys (N.lt (fst p)) r ->
+      binary_tree_invariant (fst (rotate_left b l p r)).
   Proof.
     Hint Resolve all_keys_smaller_chain all_keys_greater_chain.
-    intros b k v l r bt_inv_l bt_inv_r l_smaller r_greater.
-    destruct l as [lb ll [lk lv] lr|].
-    - simpl. destruct lb; destruct lr as [lrb lrl [lrk lrkv] lrr|];
-          simpl in *; unfold all_keys_smaller, all_keys_greater in *; simpl in *;
+    intros b p l r bt_inv_l bt_inv_r l_smaller r_greater.
+    destruct l as [lb ll lp lr|].
+    - simpl. destruct lb; destruct lr as [lrb lrl lrp lrr|];
+          simpl in *;
           rewrite_all N.gt_lt_iff;
           intuition eauto.
     - simpl. auto.
   Qed.
 
   Lemma rotate_right_binary_tree_invariant :
-    forall (b:bool) (k:N) (v:T) (l r:avl_tree T),
+    forall (b:bool) (p:N * T) (l r:avl_tree T),
       binary_tree_invariant l -> binary_tree_invariant r ->
-      forall_keys (N.gt k) l -> forall_keys (N.lt k) r ->
-      binary_tree_invariant (fst (rotate_right b l (k,v) r)).
+      forall_keys (N.gt (fst p)) l -> forall_keys (N.lt (fst p)) r ->
+      binary_tree_invariant (fst (rotate_right b l p r)).
   Proof.
     Hint Resolve all_keys_smaller_chain all_keys_greater_chain.
-    intros b k v l r bt_inv_l bt_inv_r l_smaller r_greater.
-    destruct r as [rb rl [rk rv] rr|].
-    - simpl. destruct rb; destruct rl as [rlb rll [rlk rlkv] rlr|];
-        simpl in *; unfold all_keys_greater, all_keys_smaller in *; simpl in *;
+    intros b p l r bt_inv_l bt_inv_r l_smaller r_greater.
+    destruct r as [rb rl rp rr|].
+    - simpl. destruct rb; destruct rl as [rlb rll rlp rlr|];
+        simpl in *; simpl in *;
         rewrite_all N.gt_lt_iff; intuition eauto.
     - simpl. auto.
   Qed.
 
   Lemma rotate_left_same_elements :
-    forall (b:bool) (k k':N) (v v':T) (l r:avl_tree T),
-      In (k',v') (avl_branch zero l (k,v) r) <->
-      In (k',v') (fst (rotate_left b l (k,v) r)).
+    forall (b:bool) (p p':N * T) (l r:avl_tree T),
+      In p' (avl_branch zero l p r) <->
+      In p' (fst (rotate_left b l p r)).
   Proof.
-    intros b k k' v v' l r.
-    destruct l as [lb ll [lk lv] lr|].
+    intros b p p' l r.
+    destruct l as [lb ll lp lr|].
     - simpl. destruct lb;
-        destruct lr as [lrb lrl [lrk lrv] lrr|];
-        simpl in *; rewrite_all invert_tuple_eq;
+        destruct lr as [lrb lrl lrp lrr|];
+        simpl in *;
         intuition (subst; assumption || discriminate).
     - simpl. reflexivity.
   Qed.
 
   Lemma rotate_right_same_elements :
-    forall (b:bool) (k k':N) (v v':T) (l r:avl_tree T),
-      In (k',v') (avl_branch zero l (k,v) r) <->
-      In (k',v') (fst (rotate_right b l (k,v) r)).
+    forall (b:bool) (p p':N * T) (l r:avl_tree T),
+      In p' (avl_branch zero l p r) <->
+      In p' (fst (rotate_right b l p r)).
   Proof.
-    intros b k k' v v' l r.
-    destruct r as [rb rl [rk rv] rr|].
+    intros b p p' l r.
+    destruct r as [rb rl rp rr|].
     - simpl. destruct rb;
-        destruct rl as [rlb rll [rlk rlv] rlr|];
-        simpl in *; rewrite_all invert_tuple_eq;
+        destruct rl as [rlb rll rlp rlr|];
+        simpl in *;
         intuition (subst; assumption || discriminate).
     - simpl. reflexivity.
   Qed.
 
   Theorem node_binary_tree_invariant :
-    forall (b:sign) (s:sign + sign) (l r:avl_tree T) (k:N) (v:T),
+    forall (b:sign) (s:sign + sign) (l r:avl_tree T) (p:N * T),
       binary_tree_invariant l -> binary_tree_invariant r ->
-      forall_keys (N.gt k) l -> forall_keys (N.lt k) r ->
-      binary_tree_invariant (fst (node b s l (k,v) r)).
+      forall_keys (N.gt (fst p)) l -> forall_keys (N.lt (fst p)) r ->
+      binary_tree_invariant (fst (node b s l p r)).
   Proof.
     Hint Resolve rotate_right_binary_tree_invariant rotate_left_binary_tree_invariant.
-    intros b s l r k v bt_inv_l bt_inv_r l_smaller r_greater. unfold node.
+    intros b s l p v bt_inv_l bt_inv_r l_smaller r_greater. unfold node.
     destruct s as [s|s]; destruct s; destruct b; simpl; auto.
   Qed.
 
   Theorem node_same_elements :
-    forall (b:sign) (s:sign + sign) (l r:avl_tree T) (k k':N) (v v':T),
-      (k',v') = (k,v) \/ In (k',v') l \/ In (k',v') r <->
-      In (k',v') (fst (node b s l (k,v) r)).
+    forall (b:sign) (s:sign + sign) (l r:avl_tree T) (p p':N * T),
+      p' = p \/ In p' l \/ In p' r <->
+      In p' (fst (node b s l p r)).
   Proof.
-    Hint Rewrite <- invert_tuple_eq rotate_right_same_elements rotate_left_same_elements : core.
-    intros b s l r k k' v v'.
+    Hint Rewrite <- rotate_right_same_elements rotate_left_same_elements : core.
+    intros b s l r p p'.
     destruct s as [s|s]; destruct s; destruct b; unfold node; simpl;
-    autorewrite with core; simpl; intuition (subst; auto).
+    autorewrite with core; simpl; split; trivial.
+  Qed.
+
+  Lemma node_preserve_forall :
+    forall (l r:avl_tree T) (p:N * T) (b:sign) (s:sign + sign) (P:N -> Prop),
+      forall_keys P l -> forall_keys P r -> P (fst p) ->
+      forall_keys P (fst (node b s l p r)).
+  Proof.
+    Hint Rewrite -> forall_keys_In_iff.
+    Hint Rewrite <- node_same_elements.
+    intros l r p b s P forall_l forall_r P_k.
+    apply forall_keys_In_iff. intros. autorewrite with core in *.
+    rewrite_all invert_tuple_eq. intuition (subst; simpl in *; eauto).
   Qed.
 
 End Node.
@@ -468,7 +475,7 @@ Section Insert.
       forall_keys P t -> P k -> forall_keys P (avl_insert k v t).
   Proof.
     Hint Resolve <- insert_preserve_other.
-    setoid_rewrite forall_keys_In_iff. intros k v t P forall_t for_P k' v'.
+    setoid_rewrite forall_keys_In_iff. intros k v t P forall_t for_P [k' v'].
     destruct (N.eq_dec k k'); subst; eauto.
   Qed.
 
@@ -479,16 +486,15 @@ Section Insert.
     Hint Resolve node_binary_tree_invariant insert_forall_keys.
     Hint Resolve -> N.gt_lt_iff.
     Hint Resolve <- N.gt_lt_iff.
-    Hint Unfold all_keys_greater all_keys_smaller.
     intros k v t bt_inv_t. induction t as [b l IHl [k' v'] r IHr|].
     - unfold avl_insert in *. simpl. destruct (N.compare_spec k k') as [C|C|C].
       + simpl in *. subst k'. auto.
       + destruct (avl_insert_go k v l) as [a s] eqn:X.
         replace a with (avl_insert k v l) in * by (unfold avl_insert; rewrite X; auto).
-        simpl in *. autounfold in *. intuition auto.
+        simpl in *. intuition auto.
       + destruct (avl_insert_go k v r) as [a s] eqn:X.
         replace a with (avl_insert k v r) in * by (unfold avl_insert; rewrite X; auto).
-        simpl in *. autounfold in *. intuition auto.
+        simpl in *. intuition auto.
     - simpl. auto.
   Qed.
 
