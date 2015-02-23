@@ -60,8 +60,9 @@ Section Height.
   Fixpoint avl_height (t:avl_tree T) : N :=
     match t with
       | avl_empty => 0
-      | avl_branch _ l _ r => N.max (avl_height l) (avl_height r) + 1
+      | avl_branch _ l _ r => N.succ (N.max (avl_height l) (avl_height r))
     end.
+  Global Arguments avl_height : default implicits.
 
   Example avl_height_ex_empty : avl_height avl_empty = 0.
   Proof. reflexivity. Qed.
@@ -149,6 +150,37 @@ Section Invariants.
     end.
   Global Arguments binary_tree_invariant : default implicits.
 
+  Fixpoint avl_invariant (t:avl_tree T) : Prop :=
+    match t with
+      | avl_empty => True
+      | avl_branch _ l _ r =>
+        (avl_height l = avl_height r \/ avl_height l = N.succ (avl_height r) \/ N.succ (avl_height l) = avl_height r)
+        /\ avl_invariant l /\ avl_invariant r
+    end.
+  Global Arguments avl_invariant : default implicits.
+
+  Definition balanced_with (b:sign) (l r:avl_tree T) : Prop :=
+    match b with
+      | positive => avl_height l = N.succ (avl_height r)
+      | zero     => avl_height l = avl_height r
+      | negative => N.succ (avl_height l) = avl_height r
+    end.
+
+  Fixpoint balance_correct (t:avl_tree T) : Prop :=
+    match t with
+      | avl_empty => True
+      | avl_branch b l _ r => balanced_with b l r /\ balance_correct l /\ balance_correct r
+    end.
+  Global Arguments balance_correct : default implicits.
+
+  Theorem balance_correct_implies_avl_invariant :
+    forall (t:avl_tree T), balance_correct t -> avl_invariant t.
+  Proof.
+    intros t H. induction t as [b l IHl p r IHr|].
+    - simpl in *. destruct b; simpl in *; tauto.
+    - auto.
+  Qed.
+
 End Invariants.
 
 Section Node.
@@ -194,9 +226,9 @@ Section Node.
       | avl_branch positive (avl_branch rlb rll rlp rlr) rp rr =>
         ( avl_branch
             zero
-            (avl_branch (sign_negate rlb) l p rll)
+            (avl_branch (if beq_sign rlb negative then positive else zero) l p rll)
             rlp
-            (avl_branch (sign_negate rlb) rlr rp rr)
+            (avl_branch (if beq_sign rlb positive then negative else zero) rlr rp rr)
           , if removed then negative else zero
         )
       | avl_branch b rl rp rr =>
@@ -228,9 +260,9 @@ Section Node.
       | avl_branch negative ll lp (avl_branch lrb lrl lrp lrr) =>
         ( avl_branch
             zero
-            (avl_branch (sign_negate lrb) ll lp lrl)
+            (avl_branch (if beq_sign lrb negative then positive else zero) ll lp lrl)
             lrp
-            (avl_branch (sign_negate lrb) lrr p r)
+            (avl_branch (if beq_sign lrb positive then negative else zero) lrr p r)
           , if removed then negative else zero
         )
       | avl_branch b ll lp lr =>
@@ -396,6 +428,98 @@ Section Node.
     apply forall_keys_In_iff. intros. autorewrite with core in *.
     rewrite_all invert_tuple_eq. intuition (subst; simpl in *; eauto).
   Qed.
+
+  Definition height_change_correct (c:sign) (t t':avl_tree T) : Prop :=
+    match c with
+      | negative => avl_height t = N.succ (avl_height t')
+      | zero     => avl_height t = avl_height t'
+      | positive => N.succ (avl_height t) = avl_height t'
+    end.
+
+  Definition changed_height_in (s:sign + sign) (l l' r r':avl_tree T) : Prop :=
+    match s with
+      | inl c => avl_height r = avl_height r' /\ height_change_correct c l l'
+      | inr c => avl_height l = avl_height l' /\ height_change_correct c r r'
+    end.
+
+  Lemma max_succ_id_r :
+    forall (n:N), N.max n (N.succ n) = N.succ n.
+  Proof.
+    Hint Resolve N.le_succ_diag_r.
+    intros n. rewrite N.max_r; auto.
+  Qed.
+
+  Lemma max_succ_id_l :
+    forall (n:N), N.max (N.succ n) n = N.succ n.
+  Proof.
+    intros. rewrite N.max_comm. apply max_succ_id_r.
+  Qed.
+
+  Theorem rotate_right_balance_correct :
+    forall (rem:bool) (l r:avl_tree T) (p:N * T),
+      N.succ (N.succ (avl_height l)) = avl_height r ->
+      balance_correct l -> balance_correct r ->
+      balance_correct (fst (rotate_right rem l p r)).
+  Proof.
+    intros rem l r p heq bal_l bal_r.
+    pose max_succ_id_l. pose max_succ_id_r.
+    pose N.max_id. pose N.max_comm. pose N.max_assoc.
+    destruct r as [rb rl rp rr|].
+    - destruct bal_r as [rl_heq [bal_rl bal_rr]]. simpl in *. apply N.succ_inj in heq.
+      destruct rb.
+      + simpl in *. rewrite <- rl_heq in heq. rewrite max_succ_id_r in heq.
+        apply N.succ_inj in heq. repeat split; congruence.
+      + simpl in *. rewrite <- rl_heq in heq. rewrite N.max_id in heq.
+        repeat split; congruence.
+      + destruct rl as [rlb rll rlp rlr|].
+        * simpl in *. apply N.succ_inj in rl_heq. rewrite_all <- rl_heq.
+          rewrite max_succ_id_l in heq. apply N.succ_inj in heq.
+          repeat split; destruct rlb; simpl in *; intuition congruence.
+        * simpl in *. exfalso. apply N.neq_0_succ with (avl_height rr). tauto.
+    - simpl in *. apply N.neq_succ_0 in heq. tauto.
+  Qed.
+
+  Theorem rotate_left_balance_correct :
+    forall (rem:bool) (l r:avl_tree T) (p:N * T),
+      N.succ (N.succ (avl_height r)) = avl_height l ->
+      balance_correct l -> balance_correct r ->
+      balance_correct (fst (rotate_left rem l p r)).
+  Proof.
+    intros rem l r p heq bal_l bal_r. pose max_succ_id_l. pose max_succ_id_r.
+    pose N.max_id. pose N.max_comm. pose N.max_assoc.
+    destruct l as [lb ll lp lr|].
+    - destruct bal_l as [lr_heq [bal_ll bal_lr]]. simpl in *. apply N.succ_inj in heq.
+      destruct lb.
+      + destruct lr as [lrb lrl lrp lrr|].
+        * simpl in *. apply N.succ_inj in lr_heq. rewrite_all <- lr_heq.
+          rewrite max_succ_id_r in heq. apply N.succ_inj in heq.
+          repeat split; destruct lrb; simpl in *; intuition congruence.
+        * simpl in *. exfalso. apply N.neq_succ_0 with (avl_height ll). tauto.
+      + simpl in *. rewrite <- lr_heq in heq. rewrite N.max_id in heq.
+        repeat split; congruence.
+      + simpl in *. rewrite lr_heq in heq. rewrite max_succ_id_l in heq.
+        apply N.succ_inj in heq. repeat split; congruence.
+    - simpl in *. apply N.neq_succ_0 in heq. contradiction.
+  Qed.
+
+    
+  Theorem node_balance_correct :
+    forall (l l' r r':avl_tree T) (p:N * T) (b:sign) (s:sign + sign),
+      changed_height_in s l l' r r' ->
+      balance_correct (avl_branch b l p r) ->
+      balance_correct l' -> balance_correct r' ->
+      balance_correct (fst (node b s l' p r')).
+  Proof.
+    intros l l' r r' p b s H bal_prev bal_l' bal_r'. unfold node.
+    destruct s as [hd|hd];
+      simpl in *;
+      destruct b; destruct hd; simpl in *;
+      try (apply rotate_right_balance_correct || apply rotate_left_balance_correct);
+      repeat split;
+      try (apply N.succ_inj);
+      intuition congruence.
+  Qed.
+
 
 End Node.
 
