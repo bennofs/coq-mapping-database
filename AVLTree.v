@@ -438,8 +438,8 @@ Section Node.
 
   Definition changed_height_in (s:sign + sign) (l l' r r':avl_tree T) : Prop :=
     match s with
-      | inl c => avl_height r = avl_height r' /\ height_change_correct c l l'
-      | inr c => avl_height l = avl_height l' /\ height_change_correct c r r'
+      | inl c => r = r' /\ height_change_correct c l l'
+      | inr c => l = l' /\ height_change_correct c r r'
     end.
 
   Lemma max_succ_id_r :
@@ -521,13 +521,156 @@ Section Node.
   Qed.
 
   Theorem rotate_left_rem_height_change_correct :
-    forall (s:sign + sign) (l r r':avl_tree T) (p:N * T),
-      N.succ (N.succ (avl_height r)) = avl_height l ->
+    forall (l r r':avl_tree T) (p:N * T),
+      N.succ (N.succ (avl_height r')) = avl_height l ->
       avl_height r = N.succ (avl_height r') ->
-      balance_correct l -> balance_correct r ->
+      balance_correct l ->
       height_change_correct (snd (rotate_left true l p r'))
                             (avl_branch positive l p r)
                             (fst (rotate_left true l p r')).
+  Proof.
+    pose max_succ_id_r. pose N.max_comm. pose N.max_assoc. pose N.max_id.
+    pose N.succ_inj_wd. pose max_succ_id_r. pose max_succ_id_l. pose N.succ_max_distr. 
+    intros l r r' p l_heq r_heq bal_l. destruct l as [lb ll lp lr|].
+    - simpl in *. destruct lb.
+      + destruct lr as [lrb lrl lrp lrr|]; simpl in *; intuition congruence.
+      + simpl in *. intuition congruence.
+      + simpl in *. intuition congruence.
+    - simpl in *. intuition congruence.
+  Qed.
+
+  Theorem rotate_right_rem_height_change_correct :
+    forall (l l' r:avl_tree T) (p:N * T),
+      N.succ (N.succ (avl_height l')) = avl_height r ->
+      avl_height l = N.succ (avl_height l') ->
+      balance_correct r ->
+      height_change_correct (snd (rotate_right true l' p r))
+                            (avl_branch negative l p r)
+                            (fst (rotate_right true l' p r)).
+  Proof.
+    pose max_succ_id_r. pose N.max_comm. pose N.max_assoc. pose N.max_id.
+    pose N.succ_inj_wd. pose max_succ_id_r. pose max_succ_id_l. pose N.succ_max_distr. 
+    intros l l' r p l_heq r_heq bal_r. destruct r as [rb rl rp rr|].
+    - simpl in *. destruct rb.
+      + simpl in *. intuition congruence.
+      + simpl in *. intuition congruence.
+      + destruct rl as [rlb rll rlp rlr|]; simpl in *; intuition congruence.
+    - simpl in *. intuition congruence.
+  Qed.
+
+  Definition balance_not_zero (t:avl_tree T) : Prop :=
+    match t with
+      | avl_branch b _ _ _ => b <> zero
+      | avl_empty          => False
+    end.
+
+  Theorem rotate_left_ins_height_change_correct :
+    forall (l l' r:avl_tree T) (p:N * T),
+      N.succ (N.succ (avl_height r)) = avl_height l' ->
+      avl_height l' = N.succ (avl_height l) ->
+      balance_not_zero l' -> balance_correct l' ->
+      height_change_correct (snd (rotate_left false l' p r))
+                            (avl_branch positive l p r)
+                            (fst (rotate_left false l' p r)).
+  Proof.
+    pose max_succ_id_r. pose max_succ_id_l. pose N.max_id. pose N.succ_max_distr. 
+    pose N.max_comm. pose N.max_assoc. pose N.succ_inj_wd.
+    intros l l' r p l'r_heq l_heq l'_bal_nz bal_l'.
+    assert (lr_heq := l'r_heq). rewrite l_heq in lr_heq. apply N.succ_inj in lr_heq.
+    destruct l' as [l'b l'l l'p l'r|].
+    - destruct l'b.
+      + destruct l'r as [l'rb l'rl l'rp l'rr|].
+        * simpl in *; intuition congruence.
+        * simpl in *. exfalso. apply N.neq_succ_0 with (avl_height l'l). tauto.
+      + simpl in *. exfalso. auto.
+      + simpl in *. intuition congruence.
+    - simpl in *. intuition congruence.
+  Qed.
+
+  Theorem rotate_right_ins_height_change_correct :
+    forall (l r r':avl_tree T) (p:N * T),
+      N.succ (N.succ (avl_height l)) = avl_height r' ->
+      avl_height r' = N.succ (avl_height r) ->
+      balance_not_zero r' -> balance_correct r' ->
+      height_change_correct (snd (rotate_right false l p r'))
+                            (avl_branch positive l p r)
+                            (fst (rotate_right false l p r')).
+  Proof.
+    pose max_succ_id_r. pose max_succ_id_l. pose N.max_id. pose N.succ_max_distr. 
+    pose N.max_comm. pose N.max_assoc. pose N.succ_inj_wd.
+    intros l r r' p lr'_heq r_heq r'_bal_nz bal_r'.
+    destruct r' as [r'b r'l r'p r'r|].
+    - destruct r'b.
+      + simpl in *. intuition congruence.
+      + simpl in *. exfalso. auto.
+      + destruct r'l as [r'lb r'll r'lp r'lr|].
+        * simpl in *; intuition congruence.
+        * simpl in *. exfalso. apply N.neq_0_succ with (avl_height r'r). tauto.
+    - simpl in *. intuition congruence.
+  Qed.
+
+  Definition balance_not_zero_in (s:sign + sign) (l r:avl_tree T) : Prop :=
+    match s with
+      | inl positive => balance_not_zero l
+      | inr positive => balance_not_zero r
+      | _            => True
+    end.
+  
+  Theorem node_height_change :
+    forall (b:sign) (s:sign + sign) (l l' r r':avl_tree T) (p:N * T),
+      changed_height_in s l l' r r' ->
+      balance_not_zero_in s l' r' ->
+      balance_correct (avl_branch b l p r) -> balance_correct l' -> balance_correct r' ->
+      height_change_correct (snd (node b s l' p r'))
+                            (avl_branch b l p r)
+                            (fst (node b s l' p r')).
+  Proof.
+    pose max_succ_id_r. pose max_succ_id_l. pose N.max_id. pose N.succ_max_distr. 
+    pose N.max_comm. pose N.max_assoc. pose N.succ_inj_wd.
+    intros b s l l' r r' p ch bal_nz_in bal_t bal_l' bal_r'.
+    unfold node. destruct s as [hd|hd];
+      destruct hd; destruct b; simpl in *;
+      intuition (
+          subst;
+          try apply rotate_right_rem_height_change_correct;
+          try apply rotate_right_ins_height_change_correct;
+          try apply rotate_left_rem_height_change_correct;
+          try apply rotate_left_ins_height_change_correct;
+          congruence).
+  Qed.
+
+  Theorem rotate_right_insert_balance_not_zero :
+    forall (rem:bool) (l r:avl_tree T) (p:N * T),
+      snd (rotate_right rem l p r) = positive ->
+      balance_not_zero (fst (rotate_right rem l p r)).
+  Proof.
+    intros rem l r p H.
+    destruct r as [rb rl rp rr|].
+    - destruct rl as [rlb rll rlp rlr|]; destruct rem; destruct rb; simpl in *;
+      discriminate.
+    - discriminate.
+  Qed.
+
+  Theorem rotate_left_insert_balance_not_zero :
+    forall (rem:bool) (l r:avl_tree T) (p:N * T),
+      snd (rotate_left rem l p r) = positive ->
+      balance_not_zero (fst (rotate_left rem l p r)).
+  Proof.
+    intros rem l r p. destruct l as [lb ll lp lr|].
+    - destruct rem; destruct lb; destruct lr; discriminate.
+    - discriminate.
+  Qed.
+
+  Theorem node_insert_balance_not_zero :
+    forall (b:sign) (s:sign + sign) (l r:avl_tree T) (p:N * T),
+      snd (node b s l p r) = positive ->
+      balance_not_zero (fst (node b s l p r)).
+  Proof.
+    intros b s l r p H.
+    pose rotate_right_insert_balance_not_zero. pose rotate_left_insert_balance_not_zero.
+    unfold node in *.
+    destruct s as [hd|hd]; destruct hd; destruct b; simpl in *; discriminate || auto.
+  Qed.
 
 End Node.
 
