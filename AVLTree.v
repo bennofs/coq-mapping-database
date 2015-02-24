@@ -520,6 +520,14 @@ Section Node.
       intuition congruence.
   Qed.
 
+  Theorem rotate_left_rem_height_change_correct :
+    forall (s:sign + sign) (l r r':avl_tree T) (p:N * T),
+      N.succ (N.succ (avl_height r)) = avl_height l ->
+      avl_height r = N.succ (avl_height r') ->
+      balance_correct l -> balance_correct r ->
+      height_change_correct (snd (rotate_left true l p r'))
+                            (avl_branch positive l p r)
+                            (fst (rotate_left true l p r')).
 
 End Node.
 
