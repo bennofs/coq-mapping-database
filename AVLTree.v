@@ -1,6 +1,5 @@
 Require Import NArith.
 Require Import Bool.
-Require Import String.
 Definition admit {T:Type} : T. Admitted.
 
 Open Scope N.
@@ -435,12 +434,14 @@ Section Node.
       | zero     => avl_height t = avl_height t'
       | positive => N.succ (avl_height t) = avl_height t'
     end.
+  Global Arguments height_change_correct : default implicits.
 
   Definition changed_height_in (s:sign + sign) (l l' r r':avl_tree T) : Prop :=
     match s with
       | inl c => r = r' /\ height_change_correct c l l'
       | inr c => l = l' /\ height_change_correct c r r'
     end.
+  Global Arguments changed_height_in : default implicits.
 
   Lemma max_succ_id_r :
     forall (n:N), N.max n (N.succ n) = N.succ n.
@@ -558,31 +559,38 @@ Section Node.
     - simpl in *. intuition congruence.
   Qed.
 
-  Definition balance_not_zero (t:avl_tree T) : Prop :=
+  Definition correct_for_insert (t:avl_tree T) : Prop :=
     match t with
-      | avl_branch b _ _ _ => b <> zero
+      | avl_branch _ avl_empty _ avl_empty => True
+      | avl_branch b l _ r => b <> zero
       | avl_empty          => False
     end.
+  Global Arguments correct_for_insert : default implicits.
 
   Theorem rotate_left_ins_height_change_correct :
     forall (l l' r:avl_tree T) (p:N * T),
       N.succ (N.succ (avl_height r)) = avl_height l' ->
       avl_height l' = N.succ (avl_height l) ->
-      balance_not_zero l' -> balance_correct l' ->
+      correct_for_insert l' -> balance_correct l' ->
       height_change_correct (snd (rotate_left false l' p r))
                             (avl_branch positive l p r)
                             (fst (rotate_left false l' p r)).
   Proof.
     pose max_succ_id_r. pose max_succ_id_l. pose N.max_id. pose N.succ_max_distr. 
     pose N.max_comm. pose N.max_assoc. pose N.succ_inj_wd.
-    intros l l' r p l'r_heq l_heq l'_bal_nz bal_l'.
+    intros l l' r p l'r_heq l_heq l'_c bal_l'.
     assert (lr_heq := l'r_heq). rewrite l_heq in lr_heq. apply N.succ_inj in lr_heq.
     destruct l' as [l'b l'l l'p l'r|].
     - destruct l'b.
       + destruct l'r as [l'rb l'rl l'rp l'rr|].
         * simpl in *; intuition congruence.
         * simpl in *. exfalso. apply N.neq_succ_0 with (avl_height l'l). tauto.
-      + simpl in *. exfalso. auto.
+      + simpl in *. destruct l'l; destruct l'r.
+        * exfalso. auto.
+        * exfalso. auto.
+        * exfalso. auto.
+        * simpl in *. exfalso. rewrite N.one_succ in l'r_heq.
+          apply N.succ_inj in l'r_heq. apply N.succ_0_discr in l'r_heq. auto.
       + simpl in *. intuition congruence.
     - simpl in *. intuition congruence.
   Qed.
@@ -591,7 +599,7 @@ Section Node.
     forall (l r r':avl_tree T) (p:N * T),
       N.succ (N.succ (avl_height l)) = avl_height r' ->
       avl_height r' = N.succ (avl_height r) ->
-      balance_not_zero r' -> balance_correct r' ->
+      correct_for_insert r' -> balance_correct r' ->
       height_change_correct (snd (rotate_right false l p r'))
                             (avl_branch positive l p r)
                             (fst (rotate_right false l p r')).
@@ -602,24 +610,29 @@ Section Node.
     destruct r' as [r'b r'l r'p r'r|].
     - destruct r'b.
       + simpl in *. intuition congruence.
-      + simpl in *. exfalso. auto.
+      + simpl in *. destruct r'l; destruct r'r.
+        * exfalso. auto.
+        * exfalso. auto.
+        * exfalso. auto.
+        * simpl in *. rewrite N.one_succ in lr'_heq. apply N.succ_inj in lr'_heq.
+          apply N.succ_0_discr in lr'_heq. contradiction.
       + destruct r'l as [r'lb r'll r'lp r'lr|].
         * simpl in *; intuition congruence.
         * simpl in *. exfalso. apply N.neq_0_succ with (avl_height r'r). tauto.
     - simpl in *. intuition congruence.
   Qed.
 
-  Definition balance_not_zero_in (s:sign + sign) (l r:avl_tree T) : Prop :=
+  Definition correct_for_insert_in (s:sign + sign) (l r:avl_tree T) : Prop :=
     match s with
-      | inl positive => balance_not_zero l
-      | inr positive => balance_not_zero r
+      | inl positive => correct_for_insert l
+      | inr positive => correct_for_insert r
       | _            => True
     end.
   
   Theorem node_height_change :
     forall (b:sign) (s:sign + sign) (l l' r r':avl_tree T) (p:N * T),
       changed_height_in s l l' r r' ->
-      balance_not_zero_in s l' r' ->
+      correct_for_insert_in s l' r' ->
       balance_correct (avl_branch b l p r) -> balance_correct l' -> balance_correct r' ->
       height_change_correct (snd (node b s l' p r'))
                             (avl_branch b l p r)
@@ -642,7 +655,7 @@ Section Node.
   Theorem rotate_right_insert_balance_not_zero :
     forall (rem:bool) (l r:avl_tree T) (p:N * T),
       snd (rotate_right rem l p r) = positive ->
-      balance_not_zero (fst (rotate_right rem l p r)).
+      correct_for_insert (fst (rotate_right rem l p r)).
   Proof.
     intros rem l r p H.
     destruct r as [rb rl rp rr|].
@@ -654,7 +667,7 @@ Section Node.
   Theorem rotate_left_insert_balance_not_zero :
     forall (rem:bool) (l r:avl_tree T) (p:N * T),
       snd (rotate_left rem l p r) = positive ->
-      balance_not_zero (fst (rotate_left rem l p r)).
+      correct_for_insert (fst (rotate_left rem l p r)).
   Proof.
     intros rem l r p. destruct l as [lb ll lp lr|].
     - destruct rem; destruct lb; destruct lr; discriminate.
@@ -664,12 +677,13 @@ Section Node.
   Theorem node_insert_balance_not_zero :
     forall (b:sign) (s:sign + sign) (l r:avl_tree T) (p:N * T),
       snd (node b s l p r) = positive ->
-      balance_not_zero (fst (node b s l p r)).
+      correct_for_insert (fst (node b s l p r)).
   Proof.
     intros b s l r p H.
     pose rotate_right_insert_balance_not_zero. pose rotate_left_insert_balance_not_zero.
     unfold node in *.
-    destruct s as [hd|hd]; destruct hd; destruct b; simpl in *; discriminate || auto.
+    destruct s as [hd|hd]; destruct hd; destruct b; simpl in *;
+    (destruct l; destruct r; discriminate || constructor) || auto.
   Qed.
 
 End Node.
@@ -782,9 +796,71 @@ Section Insert.
     - simpl. auto.
   Qed.
 
+  Theorem insert_correct_for_insert :
+    forall (k:N) (v:T) (t:avl_tree T),
+      snd (avl_insert_go k v t) = positive ->
+      correct_for_insert (fst (avl_insert_go k v t)).
+  Proof.
+    intros k v t hd_eq. destruct t as [b l [k' v'] r|].
+    - simpl in *. destruct (N.compare_spec k k') as [H|H|H].
+      + discriminate.
+      + destruct (avl_insert_go k v l) eqn:go_eq. apply node_insert_balance_not_zero.
+        assumption.
+      + destruct (avl_insert_go k v r) eqn:go_eq. apply node_insert_balance_not_zero.
+        assumption.
+    - simpl in *. constructor.
+  Qed.
+
+  Theorem insert_balance_and_height_correct :
+    forall (k:N) (v:T) (t:avl_tree T),
+      balance_correct t ->
+      balance_correct (fst (avl_insert_go k v t)) /\
+      height_change_correct (snd (avl_insert_go k v t))
+                            t
+                            (fst (avl_insert_go k v t)).
+  Proof.
+    intros k v t bal_t. unfold avl_insert. induction t as [b l IHl [k' v'] r IHr|].
+    - simpl in *. destruct (N.compare_spec k k') as [H|H|H].
+      + simpl. tauto.
+      + destruct (avl_insert_go k v l) as [l' s] eqn:go_eq. split.
+        * apply node_balance_correct with (l := l) (r := r); simpl; tauto.
+        * assert (s = positive -> correct_for_insert l').
+          { replace l' with (fst (l', s)) by reflexivity.
+            rewrite <- go_eq. intros. apply insert_correct_for_insert. rewrite go_eq.
+            auto.
+          } 
+          apply node_height_change; simpl; destruct s; tauto.
+      + destruct (avl_insert_go k v r) as [r' s] eqn:go_eq. split.
+        * apply node_balance_correct with (l := l) (r := r); simpl; tauto.
+        * assert (s = positive -> correct_for_insert r').
+          { replace r' with (fst (r', s)) by reflexivity.
+            rewrite <- go_eq. intros. apply insert_correct_for_insert. rewrite go_eq.
+            auto.
+          }
+          apply node_height_change; simpl; destruct s; tauto.
+    - simpl. auto.
+  Qed.
+
+  Theorem insert_balance_correct :
+    forall (k:N) (v:T) (t:avl_tree T),
+      balance_correct t -> balance_correct (avl_insert k v t).
+  Proof.
+    intros k v t H. eapply proj1. eapply insert_balance_and_height_correct. assumption.
+  Qed.
+
+  Theorem insert_avl_invariant :
+    forall (k:N) (v:T) (t:avl_tree T),
+      balance_correct t -> avl_invariant (avl_insert k v t).
+  Proof.
+    intros k v t H.
+    destruct insert_balance_and_height_correct with (k := k) (v := v) (t := t).
+    - assumption.
+    - apply balance_correct_implies_avl_invariant. unfold avl_insert. auto.
+  Qed.
+
 End Insert.
 
-Section Remove.
+Section Minimum.
   Variable T : Type.
 
   Fixpoint avl_find_minimum (t:avl_tree T) (def:N * T): (N * T) :=
@@ -792,6 +868,7 @@ Section Remove.
       | avl_empty => def
       | avl_branch lb ll lp lr => avl_find_minimum ll lp
     end.
+  Global Arguments avl_find_minimum : default implicits.
 
   Example avl_find_minimum_ex1 :
     forall a b c d : T,
@@ -815,8 +892,8 @@ Section Remove.
       binary_tree_invariant t ->
       forall_keys (N.le (fst (avl_find_minimum t def))) t.
   Proof.
-    Hint Resolve N.gt_lt N.lt_le_incl.
-    intros t def bt_inv. generalize dependent def. induction t as [b l IHl p r IHr|].
+    intros t def bt_inv. pose N.gt_lt as T1. pose N.lt_le_incl as T2.
+    generalize dependent def. induction t as [b l IHl p r IHr|].
     - intros def. clear IHr. simpl. specialize IHl with p. destruct p as [k v].
       simpl in *.
       assert (min_le_k: fst (avl_find_minimum l (k,v)) <= k).
@@ -829,79 +906,81 @@ Section Remove.
       + auto.
       + intuition auto.
       + rewrite_all forall_keys_In_iff. intros p in_r.
-        rewrite min_le_k. apply N.lt_le_incl. intuition eauto.
+        rewrite min_le_k. intuition eauto.
     - simpl. auto.
   Qed.
 
-  Fixpoint avl_remove_minimum (b:sign) (l:avl_tree T) (p:N * T) (r:avl_tree T)
+  Fixpoint avl_remove_minimum_go (b:sign) (l:avl_tree T) (p:N * T) (r:avl_tree T)
   : (avl_tree T * sign) :=
     match l with
       | avl_empty => (r, negative)
       | avl_branch lb ll lp lr =>
-        let (l',s) := avl_remove_minimum lb ll lp lr
+        let (l',s) := avl_remove_minimum_go lb ll lp lr
         in node b (inl s) l' p r
     end.
+  Global Arguments avl_remove_minimum_go : default implicits.
 
-  Theorem avl_remove_minimum_preserve_other :
+  Theorem avl_remove_minimum_go_preserve_other :
     forall (l:avl_tree T) (p':N * T) (b:sign) (p:N * T) (r:avl_tree T),
       p' = p \/ In p' l \/ In p' r <->
-      (In p' (fst (avl_remove_minimum b l p r)) \/ p' = avl_find_minimum l p).
+      (In p' (fst (avl_remove_minimum_go b l p r)) \/ p' = avl_find_minimum l p).
   Proof.
     intros l p'. induction l as [lb ll IHll lp lr IHlr|].
     - intros b p r. simpl in *.
-      destruct (avl_remove_minimum lb ll lp lr) as [l' s] eqn:rec_eq.
+      destruct (avl_remove_minimum_go lb ll lp lr) as [l' s] eqn:rec_eq.
       rewrite <- node_same_elements.
       assert (l'_eq: l' = fst (l', s)) by reflexivity. rewrite <- rec_eq in l'_eq.
       subst l'. rewrite IHll with (b := lb). tauto.
     - intros. simpl. tauto.
   Qed.
 
-  Theorem avl_remove_minimum_subset :
+  Theorem avl_remove_minimum_go_subset :
     forall (l:avl_tree T) (p':N * T) (b:sign) (p:N * T) (r:avl_tree T),
-      In p' (fst (avl_remove_minimum b l p r)) -> p' = p \/ In p' l \/ In p' r.
+      In p' (fst (avl_remove_minimum_go b l p r)) -> p' = p \/ In p' l \/ In p' r.
   Proof.
     intros l p'. induction l as [lb ll IHll lp lr IHlr|].
     - intros b p r. clear IHlr. specialize IHll with lb lp lr. simpl in *.
-      destruct (avl_remove_minimum lb ll lp lr) as [l' s] eqn:rec_eq.
+      destruct (avl_remove_minimum_go lb ll lp lr) as [l' s] eqn:rec_eq.
       replace l' with (fst (l',s)) by reflexivity.
       rewrite <- node_same_elements. intuition auto.
     - intros. simpl. auto.
   Qed.
 
-  Theorem avl_remove_preserve_forall :
+  Theorem avl_remove_minimum_go_preserve_forall :
     forall (P:N -> Prop) (b:sign) (l:avl_tree T) (p:N * T) (r:avl_tree T),
       P (fst p) /\ forall_keys P l /\ forall_keys P r ->
-      forall_keys P (fst (avl_remove_minimum b l p r)).
+      forall_keys P (fst (avl_remove_minimum_go b l p r)).
   Proof.
-    Hint Resolve avl_remove_minimum_subset.
+    pose avl_remove_minimum_go_subset as T1.
     intros. rewrite_all forall_keys_In_iff. intros p' in_rm.
-    apply avl_remove_minimum_subset in in_rm. intuition (subst; eauto).
+    apply avl_remove_minimum_go_subset in in_rm. intuition (subst; eauto).
   Qed.
 
-  Theorem avl_remove_minimum_binary_tree_invariant:
+  Theorem avl_remove_minimum_go_binary_tree_invariant:
     forall (l:avl_tree T) (b:sign) (p:N * T) (r:avl_tree T),
       binary_tree_invariant (avl_branch b l p r) ->
-      binary_tree_invariant (fst (avl_remove_minimum b l p r)).
+      binary_tree_invariant (fst (avl_remove_minimum_go b l p r)).
   Proof.
-    Hint Resolve node_binary_tree_invariant avl_remove_preserve_forall.
+    pose node_binary_tree_invariant as T1.
+    pose avl_remove_minimum_go_preserve_forall as T2.
     intros l. induction l as [lb ll IHll lp lr IHlr|].
     - intros b p r bt_inv. simpl in *. clear IHlr. specialize IHll with lb lp lr.
       simpl in *. destruct p as [k v]. destruct lp as [lk lv].
-      destruct (avl_remove_minimum lb ll (lk,lv) lr) as [l' s] eqn:min_eq.
+      destruct (avl_remove_minimum_go lb ll (lk,lv) lr) as [l' s] eqn:min_eq.
       replace l' with (fst (l',s)) by reflexivity. rewrite_all <- min_eq.
       intuition eauto.
     - intros b [k v] r. simpl in *. tauto.
   Qed.
 
-  Theorem avl_remove_minimum_min_not_In :
+  Theorem avl_remove_minimum_go_min_not_In :
     forall (l:avl_tree T) (b:sign) (p:N * T) (r:avl_tree T),
       binary_tree_invariant (avl_branch b l p r) ->
-      ~In (avl_find_minimum l p) (fst (avl_remove_minimum b l p r)).
+      ~In (avl_find_minimum l p) (fst (avl_remove_minimum_go b l p r)).
   Proof.
-    Hint Resolve N.gt_lt.
+    pose N.gt_lt as T1.
     intros l. induction l as [lb ll IHll lp lr IHlr|].
     - intros b p r bt_inv H. simpl in *.
-      destruct (avl_remove_minimum lb ll lp lr) as [l' s] eqn:rec_eq.
+      destruct (avl_remove_minimum_go lb ll lp lr) as [l' s] eqn:rec_eq.
       rewrite <- node_same_elements in H. specialize IHll with lb lp lr.
       clear IHlr. replace l' with (fst (l', s)) in H by reflexivity.
       rewrite_all <- rec_eq. rewrite_all forall_keys_In_iff. destruct H as [H|[H|H]].
@@ -918,28 +997,32 @@ Section Remove.
       apply N.lt_irrefl with (x := fst p). intuition eauto.
   Qed.
 
-  Theorem avl_remove_minimum_removes_minimum :
+  Theorem avl_remove_minimum_go_removes_minimum :
     forall (l:avl_tree T) (min_k:N) (b:sign) (p:N * T) (r:avl_tree T),
       binary_tree_invariant (avl_branch b l p r) ->
       forall_keys (N.le min_k) (avl_branch b l p r) ->
-      forall_keys (N.lt min_k) (fst (avl_remove_minimum b l p r)).
+      forall_keys (N.lt min_k) (fst (avl_remove_minimum_go b l p r)).
   Proof.
-    Hint Resolve all_keys_greater_chain_eq all_keys_greater_chain N.le_lt_trans
-         node_preserve_forall.
+    pose all_keys_greater_chain_eq as T1. pose all_keys_greater_chain as T2.
+    pose N.le_lt_trans as T3. pose node_preserve_forall as T4. pose N.gt_lt as T5.
     intros l min_k. induction l as [lb ll IHll lp lr IHlr|].
     - intros b p r bt_inv H. simpl in *. clear IHlr. specialize IHll with lb lp lr.
-      destruct (avl_remove_minimum lb ll lp lr) as [l' s] eqn:rec_eq.
+      destruct (avl_remove_minimum_go lb ll lp lr) as [l' s] eqn:rec_eq.
       replace l' with (fst (l', s)) by reflexivity. rewrite_all <- rec_eq.
       intuition eauto.
     - intros. simpl in *. intuition eauto.
   Qed.
 
-  Theorem avl_remove_minimum_all_greater :
+  Theorem avl_remove_minimum_go_all_greater :
     forall (l:avl_tree T) (b:sign) (p:N * T) (r:avl_tree T),
       binary_tree_invariant (avl_branch b l p r) ->
-      forall_keys (N.lt (fst (avl_find_minimum l p))) (fst (avl_remove_minimum b l p r)).
+      forall_keys (N.lt (fst (avl_find_minimum l p)))
+                  (fst (avl_remove_minimum_go b l p r)).
   Proof.
-    intros l b p r bt_inv. apply avl_remove_minimum_removes_minimum.
+    pose all_keys_greater_chain_eq as T1. pose all_keys_greater_chain as T2.
+    pose N.le_lt_trans as T3. pose node_preserve_forall as T4. pose N.gt_lt as T5.
+    pose N.lt_le_incl as T6.
+    intros l b p r bt_inv. apply avl_remove_minimum_go_removes_minimum.
     - assumption.
     - simpl.
       destruct avl_find_minimum_In with (t := l) (def := p) as [H|H].
@@ -948,22 +1031,23 @@ Section Remove.
         * apply avl_find_minimum_is_min. tauto.
         * rewrite_all forall_keys_In_iff.
           assert (pk_gt: fst (avl_find_minimum l p) <= fst p) by intuition eauto.
-          intros p' in_r.
-          assert (p'_gt: fst p < fst p') by intuition auto.
-          eapply N.le_lt_trans in p'_gt; eauto.
+          intros p' in_r. intuition eauto.
       + simpl in *. rewrite_all H. repeat split.
         * reflexivity.
         * rewrite <- H. apply avl_find_minimum_is_min. tauto.
-        * rewrite_all forall_keys_In_iff. intros p' in_r. apply N.lt_le_incl.
-          intuition eauto.
+        * rewrite_all forall_keys_In_iff. intros p' in_r. intuition eauto.
   Qed.
 
+End Minimum.
+
+Section Remove.
+  Variable T : Type.
 
   Definition avl_remove_top (b:sign) (l:avl_tree T) (r:avl_tree T) : avl_tree T * sign :=
     match r with
       | avl_empty => (l, negative)
       | avl_branch rb rl rp rr =>
-        let (r',s) := avl_remove_minimum rb rl rp rr
+        let (r',s) := avl_remove_minimum_go rb rl rp rr
         in node b (inr s) l (avl_find_minimum rl rp) r'
     end.
 
@@ -972,10 +1056,10 @@ Section Remove.
       (In p r \/ In p l) <-> In p (fst (avl_remove_top b l r)).
   Proof.
     intros b l r p. destruct r as [rb rl rp rr|] eqn:r_eq.
-    - simpl. destruct (avl_remove_minimum rb rl rp rr) as [r' s] eqn:rm_min_eq.
+    - simpl. destruct (avl_remove_minimum_go rb rl rp rr) as [r' s] eqn:rm_min_eq.
       replace r' with (fst (r',s)) by reflexivity. rewrite <- rm_min_eq.
       rewrite <- node_same_elements.
-      rewrite avl_remove_minimum_preserve_other with (b := rb).
+      rewrite avl_remove_minimum_go_preserve_other with (b := rb).
       tauto.
     - subst. simpl. tauto.
   Qed.
@@ -986,19 +1070,21 @@ Section Remove.
       binary_tree_invariant l -> binary_tree_invariant r ->
       binary_tree_invariant (fst (avl_remove_top b l r)).
   Proof.
-    Hint Resolve node_binary_tree_invariant avl_remove_minimum_binary_tree_invariant
-      avl_remove_minimum_subset.
+    pose node_binary_tree_invariant as T1.
+    pose avl_remove_minimum_go_binary_tree_invariant as T2.
+    pose avl_remove_minimum_go_subset as T3.
+    pose N.gt_lt as T4.
     intros b l r k k_gt_l k_lt_r bt_inv_l bt_inv_r. destruct r as [rb rl rp rr|].
-    - simpl in *. destruct (avl_remove_minimum rb rl rp rr) as [r' s] eqn:rm_min_eq.
+    - simpl in *. destruct (avl_remove_minimum_go rb rl rp rr) as [r' s] eqn:rm_min_eq.
       replace r' with (fst (r', s)) by reflexivity. rewrite_all <- rm_min_eq.
       apply node_binary_tree_invariant.
       + intuition auto.
-      + apply avl_remove_minimum_binary_tree_invariant. simpl. intuition auto.
-      + destruct avl_find_minimum_In with rl rp as [H|H].
+      + apply avl_remove_minimum_go_binary_tree_invariant. simpl. intuition auto.
+      + destruct avl_find_minimum_In with T rl rp as [H|H].
         * rewrite_all forall_keys_In_iff. intros p' in_l.
           apply N.lt_gt. apply N.lt_trans with k; intuition eauto.
         * rewrite H. apply all_keys_smaller_chain with k; intuition eauto.
-      + apply avl_remove_minimum_all_greater. simpl. intuition eauto.
+      + apply avl_remove_minimum_go_all_greater. simpl. intuition eauto.
     - simpl in *. auto.
   Qed.
 
@@ -1062,6 +1148,8 @@ Section Remove.
       binary_tree_invariant t ->
       ~In (k,v) (avl_remove k t).
   Proof.
+    pose N.le_lt_trans as T1. pose N.gt_lt as T2. pose N.lt_le_incl as T3.
+    pose N.lt_irrefl as T4. pose N.lt_le_trans as T5. pose N.lt_gt as T6.
     intros k v t bt_inv_t. induction t as [b l IHl p r IHr|].
     - unfold avl_remove. simpl. destruct p as [k' v'] eqn:peq.
       destruct (N.compare_spec k k') as [C|C|C].
@@ -1073,7 +1161,7 @@ Section Remove.
         rewrite <- rec_eq. unfold avl_remove in *. rewrite <- node_same_elements.
         rewrite invert_tuple_eq. intros H. unfold not in *. simpl in *.
         rewrite_all forall_keys_In_iff.
-        intuition (subst; (eapply N.lt_irrefl; eauto) || eauto).
+        intuition (subst; eauto).
       + destruct (avl_remove_go k r) as [r' s] eqn:rec_eq.
         replace r' with (fst (r',s)) by reflexivity.
         rewrite <- rec_eq. unfold avl_remove in *. rewrite <- node_same_elements.
