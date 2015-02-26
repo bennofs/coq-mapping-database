@@ -1,6 +1,5 @@
 Require Import NArith.
 Require Import Bool.
-Definition admit {T:Type} : T. Admitted.
 
 Open Scope N.
 
@@ -629,7 +628,7 @@ Section Node.
       | _            => True
     end.
   
-  Theorem node_height_change :
+  Theorem node_height_change_correct :
     forall (b:sign) (s:sign + sign) (l l' r r':avl_tree T) (p:N * T),
       changed_height_in s l l' r r' ->
       correct_for_insert_in s l' r' ->
@@ -652,7 +651,7 @@ Section Node.
           congruence).
   Qed.
 
-  Theorem rotate_right_insert_balance_not_zero :
+  Theorem rotate_right_correct_for_insert :
     forall (rem:bool) (l r:avl_tree T) (p:N * T),
       snd (rotate_right rem l p r) = positive ->
       correct_for_insert (fst (rotate_right rem l p r)).
@@ -664,7 +663,7 @@ Section Node.
     - discriminate.
   Qed.
 
-  Theorem rotate_left_insert_balance_not_zero :
+  Theorem rotate_left_correct_for_insert :
     forall (rem:bool) (l r:avl_tree T) (p:N * T),
       snd (rotate_left rem l p r) = positive ->
       correct_for_insert (fst (rotate_left rem l p r)).
@@ -674,17 +673,78 @@ Section Node.
     - discriminate.
   Qed.
 
-  Theorem node_insert_balance_not_zero :
+  Theorem node_correct_for_insert :
     forall (b:sign) (s:sign + sign) (l r:avl_tree T) (p:N * T),
       snd (node b s l p r) = positive ->
       correct_for_insert (fst (node b s l p r)).
   Proof.
     intros b s l r p H.
-    pose rotate_right_insert_balance_not_zero. pose rotate_left_insert_balance_not_zero.
+    pose rotate_right_correct_for_insert. pose rotate_left_correct_for_insert.
     unfold node in *.
     destruct s as [hd|hd]; destruct hd; destruct b; simpl in *;
     (destruct l; destruct r; discriminate || constructor) || auto.
   Qed.
+
+  Theorem rotate_right_height_change_not_positive :
+    forall (rem:bool) (l r:avl_tree T) (p:N * T),
+      snd (rotate_right rem l p r) <> positive.
+  Proof.
+    intros rem l r p. unfold rotate_right.
+    destruct r as [ [| |] [rlb rll rlp rlr|] rp rr|]; destruct rem; simpl in *;
+    discriminate.
+  Qed.
+
+  Theorem rotate_left_height_change_not_positive :
+    forall (rem:bool) (l r:avl_tree T) (p:N * T),
+      snd (rotate_left rem l p r) <> positive.
+  Proof.
+    intros rem l r p. unfold rotate_left.
+    destruct l as [ [| |] ll lp [lrb lrl lrp lrr|]|]; destruct rem; simpl in *;
+    discriminate.
+  Qed.
+
+  Theorem rotate_right_ins_height_change_not_negative :
+    forall (l r:avl_tree T) (p:N * T),
+      snd (rotate_right false l p r) <> negative.
+  Proof.
+    intros l r p.
+    destruct r as [ [| |] [rlb rll rlp rlr|] rp rr|]; simpl in *; discriminate.
+  Qed.
+
+  Theorem rotate_left_ins_height_change_not_negative :
+    forall (l r:avl_tree T) (p:N * T),
+      snd (rotate_left false l p r) <> negative.
+  Proof.
+    intros l r p.
+    destruct l as [ [| |] ll lp [lrb lrl lrp lrr|]|]; simpl in *; discriminate.
+  Qed.
+
+  Theorem node_height_change_not_negated_left :
+    forall (b:sign) (s:sign) (l r:avl_tree T) (p:N * T),
+      s <> zero ->
+      sign_negate s <> snd (node b (inl s) l p r).
+  Proof.
+    pose rotate_left_height_change_not_positive.
+    pose rotate_right_height_change_not_positive.
+    pose rotate_left_ins_height_change_not_negative.
+    pose rotate_right_ins_height_change_not_negative.
+    intros b s l r p. unfold node.
+    destruct s; destruct b; simpl; auto; try discriminate.
+  Qed.
+
+  Theorem node_height_change_not_negated_right :
+    forall (b:sign) (s:sign) (l r:avl_tree T) (p:N * T),
+      s <> zero ->
+      sign_negate s <> snd (node b (inr s) l p r).
+  Proof.
+    pose rotate_left_height_change_not_positive.
+    pose rotate_right_height_change_not_positive.
+    pose rotate_left_ins_height_change_not_negative.
+    pose rotate_right_ins_height_change_not_negative.
+    intros b s l r p. unfold node.
+    destruct s; destruct b; simpl; auto; try discriminate.
+  Qed.
+  
 
 End Node.
 
@@ -804,9 +864,9 @@ Section Insert.
     intros k v t hd_eq. destruct t as [b l [k' v'] r|].
     - simpl in *. destruct (N.compare_spec k k') as [H|H|H].
       + discriminate.
-      + destruct (avl_insert_go k v l) eqn:go_eq. apply node_insert_balance_not_zero.
+      + destruct (avl_insert_go k v l) eqn:go_eq. apply node_correct_for_insert.
         assumption.
-      + destruct (avl_insert_go k v r) eqn:go_eq. apply node_insert_balance_not_zero.
+      + destruct (avl_insert_go k v r) eqn:go_eq. apply node_correct_for_insert.
         assumption.
     - simpl in *. constructor.
   Qed.
@@ -829,7 +889,7 @@ Section Insert.
             rewrite <- go_eq. intros. apply insert_correct_for_insert. rewrite go_eq.
             auto.
           } 
-          apply node_height_change; simpl; destruct s; tauto.
+          apply node_height_change_correct; simpl; destruct s; tauto.
       + destruct (avl_insert_go k v r) as [r' s] eqn:go_eq. split.
         * apply node_balance_correct with (l := l) (r := r); simpl; tauto.
         * assert (s = positive -> correct_for_insert r').
@@ -837,7 +897,7 @@ Section Insert.
             rewrite <- go_eq. intros. apply insert_correct_for_insert. rewrite go_eq.
             auto.
           }
-          apply node_height_change; simpl; destruct s; tauto.
+          apply node_height_change_correct; simpl; destruct s; tauto.
     - simpl. auto.
   Qed.
 
@@ -905,8 +965,7 @@ Section Minimum.
       repeat split.
       + auto.
       + intuition auto.
-      + rewrite_all forall_keys_In_iff. intros p in_r.
-        rewrite min_le_k. intuition eauto.
+      + rewrite_all forall_keys_In_iff. intros p in_r. rewrite min_le_k. intuition eauto.
     - simpl. auto.
   Qed.
 
@@ -929,8 +988,8 @@ Section Minimum.
     - intros b p r. simpl in *.
       destruct (avl_remove_minimum_go lb ll lp lr) as [l' s] eqn:rec_eq.
       rewrite <- node_same_elements.
-      assert (l'_eq: l' = fst (l', s)) by reflexivity. rewrite <- rec_eq in l'_eq.
-      subst l'. rewrite IHll with (b := lb). tauto.
+      replace l' with (fst (l', s)) by reflexivity. rewrite <- rec_eq.
+      rewrite IHll with (b := lb). tauto.
     - intros. simpl. tauto.
   Qed.
 
@@ -1038,6 +1097,63 @@ Section Minimum.
         * rewrite_all forall_keys_In_iff. intros p' in_r. intuition eauto.
   Qed.
 
+  Theorem avl_remove_minimum_go_height_change_not_positive :
+    forall (l:avl_tree T) (b:sign) (p:N * T) (r:avl_tree T),
+      positive <> snd (avl_remove_minimum_go b l p r).
+  Proof.
+    pose node_height_change_not_negated_left as NHL.
+    pose node_height_change_not_negated_right as NHR.
+    intros l. induction l as [b' l' IHl' p' r' _|].
+    - specialize IHl' with b' p' r'. intros b p r. simpl.
+      destruct (avl_remove_minimum_go b' l' p' r') as [l'' s] eqn:go_eq.
+      specialize NHL with T b s l'' r p.
+      specialize NHR with T b s l'' r p.
+      simpl in *. destruct s; intuition (discriminate || eauto).
+    - intros. simpl. discriminate.
+  Qed.
+
+  Theorem avl_remove_minimum_go_balance_and_height_change_correct :
+    forall (l:avl_tree T) (b:sign) (p:N * T) (r:avl_tree T),
+      balance_correct (avl_branch b l p r) ->
+      balance_correct (fst (avl_remove_minimum_go b l p r)) /\
+      height_change_correct (snd (avl_remove_minimum_go b l p r))
+                            (avl_branch b l p r)
+                            (fst (avl_remove_minimum_go b l p r)).
+  Proof.
+    intros l. induction l as [b' l' IHl' p' r' IHr'|].
+    - intros b p r bal_t. clear IHr'. specialize IHl' with b' p' r'.
+      simpl. destruct (avl_remove_minimum_go b' l' p' r') as [l'' s] eqn:go_eq.
+      assert (s_not_positive: positive <> s).
+      { replace s with (snd (l'', s)) by reflexivity.
+        rewrite <- go_eq. apply avl_remove_minimum_go_height_change_not_positive.
+      }
+      split.
+      + apply node_balance_correct with (avl_branch b' l' p' r') r; simpl in *; tauto.
+      + apply node_height_change_correct; destruct s; simpl in *;
+        intuition (contradiction || tauto).
+    - intros. simpl in *. rewrite N.max_0_l. tauto.
+  Qed.
+
+  Theorem avl_remove_minimum_go_height_change_correct :
+    forall (l r:avl_tree T) (b:sign) (p:N * T) (r:avl_tree T),
+      balance_correct (avl_branch b l p r) ->
+      height_change_correct (snd (avl_remove_minimum_go b l p r))
+                            (avl_branch b l p r)
+                            (fst (avl_remove_minimum_go b l p r)).
+  Proof.
+    pose avl_remove_minimum_go_balance_and_height_change_correct as H.
+    intros. edestruct H; eassumption.
+  Qed.
+
+  Theorem avl_remove_minimum_go_balance_correct :
+    forall (l r:avl_tree T) (b:sign) (p:N * T) (r:avl_tree T),
+      balance_correct (avl_branch b l p r) ->
+      balance_correct (fst (avl_remove_minimum_go b l p r)).
+  Proof.
+    intros.
+    edestruct avl_remove_minimum_go_balance_and_height_change_correct; eassumption.
+  Qed.
+
 End Minimum.
 
 Section Remove.
@@ -1086,6 +1202,65 @@ Section Remove.
         * rewrite H. apply all_keys_smaller_chain with k; intuition eauto.
       + apply avl_remove_minimum_go_all_greater. simpl. intuition eauto.
     - simpl in *. auto.
+  Qed.
+
+  Lemma height_change_correct_change_branch_value :
+    forall (t l r l' r':avl_tree T) (c b:sign) (p p':N * T),
+      height_change_correct c (avl_branch b l' p r') t <->
+      height_change_correct c (avl_branch b l' p' r') t.
+  Proof.
+    intros. destruct c; simpl; reflexivity.
+  Qed.
+                            
+
+  Theorem avl_remove_top_balance_and_height_correct :
+    forall (b:sign) (l:avl_tree T) (r:avl_tree T) (p:N * T) ,
+      balance_correct (avl_branch b l p r) ->
+      balance_correct (fst (avl_remove_top b l r)) /\
+      height_change_correct (snd (avl_remove_top b l r))
+                            (avl_branch b l p r)
+                            (fst (avl_remove_top b l r)).
+  Proof.
+    pose avl_remove_minimum_go_height_change_correct as T1.
+    pose avl_remove_minimum_go_balance_correct as T2.
+    pose node_balance_correct as T3.
+    pose node_height_change_correct as T4.
+    intros b l r p bal_t. destruct r as [rb rl rp rr|].
+    - simpl in *. destruct (avl_remove_minimum_go rb rl rp rr) as [r' s] eqn:min_eq.
+      rewrite surjective_pairing in min_eq at 1. inversion min_eq as [[r'_eq s_eq]].
+      split.
+      + apply node_balance_correct with l (avl_branch rb rl rp rr); simpl in *;
+        intuition auto.
+      + rewrite height_change_correct_change_branch_value.
+        assert (positive <> s)
+          by (subst s; apply avl_remove_minimum_go_height_change_not_positive).
+        apply T4.
+        * simpl. intuition auto.
+        * simpl. rewrite s_eq. destruct s; constructor || (exfalso; auto).
+        * simpl. tauto.
+        * simpl. tauto.
+        * simpl. intuition auto.
+        * tauto.
+        * tauto.
+    - simpl in *. rewrite N.max_0_r. tauto.
+  Qed.
+
+  Theorem avl_remove_top_height_change_not_positive :
+    forall (b:sign) (l r:avl_tree T),
+      positive <> snd (avl_remove_top b l r).
+  Proof.
+    intros b l r. destruct r as [rb rl rp rr|].
+    - simpl in *. destruct (avl_remove_minimum_go rb rl rp rr) as [r' s] eqn:min_eq.
+      replace positive with (sign_negate negative) by reflexivity.
+      assert (s_not_positive: positive <> s).
+      { replace s with (snd (r', s)) by reflexivity.
+        rewrite <- min_eq. apply avl_remove_minimum_go_height_change_not_positive.
+      }
+      destruct s.
+      + apply node_height_change_not_negated_right. discriminate.
+      + simpl. discriminate.
+      + exfalso. auto.
+    - simpl. discriminate.
   Qed.
 
   Fixpoint avl_remove_go (k:N) (t:avl_tree T) : avl_tree T * sign :=
@@ -1222,6 +1397,62 @@ Section Remove.
     - simpl. constructor.
   Qed.
 
+  Theorem remove_height_change_not_positive :
+    forall (k:N) (t:avl_tree T),
+      positive <> snd (avl_remove_go k t).
+  Proof.
+    intros k t. induction t as [b l IHl [k' v'] r IHr|].
+    - simpl. destruct (N.compare_spec k k') as [C|C|C].
+      + simpl. apply avl_remove_top_height_change_not_positive.
+      + destruct (avl_remove_go k l) as [l' s] eqn:go_eq.
+        simpl in *.
+        replace positive with (sign_negate negative) by reflexivity.
+        destruct s.
+        * apply node_height_change_not_negated_left. discriminate.
+        * simpl. discriminate.
+        * exfalso. auto.
+      + destruct (avl_remove_go k r) as [r' s] eqn:go_eq.
+        simpl in *.
+        replace positive with (sign_negate negative) by reflexivity.
+        destruct s.
+        * apply node_height_change_not_negated_right. discriminate.
+        * simpl. discriminate.
+        * exfalso. auto.
+    - simpl. discriminate.
+  Qed.
+
+  Theorem remove_balance_and_height_correct :
+    forall (k:N) (t:avl_tree T),
+      balance_correct t ->
+      balance_correct (fst (avl_remove_go k t)) /\
+      height_change_correct (snd (avl_remove_go k t))
+                            t
+                            (fst (avl_remove_go k t)).
+  Proof.
+    intros k t bal_t. induction t as [b l IHl [k' v'] r IHr|].
+    - simpl in *.  destruct (N.compare_spec k k') as [C|C|C].
+      + subst k'. apply avl_remove_top_balance_and_height_correct. auto.
+      + destruct (avl_remove_go k l) as [l' s] eqn:go_eq. split.
+        * apply node_balance_correct with l r; simpl in *; tauto.
+        * assert (s_not_positive: positive <> s).
+          { replace s with (snd (l', s)) by reflexivity.
+            rewrite <- go_eq.
+            apply remove_height_change_not_positive.
+          }
+          apply node_height_change_correct; simpl in *;
+          tauto || (destruct s; auto || (exfalso; auto)).
+      + destruct (avl_remove_go k r) as [r' s] eqn:go_eq. split.
+        * apply node_balance_correct with l r; simpl in *; tauto.
+        * assert (s_not_positive: positive <> s).
+          { replace s with (snd (r',s)) by reflexivity.
+            rewrite <- go_eq.
+            apply remove_height_change_not_positive.
+          }
+          apply node_height_change_correct; simpl in *;
+          tauto || (destruct s; auto || (exfalso; auto)).
+    - simpl. auto.
+  Qed.
+
 Section Lookup.
 
   Variable T : Type.
@@ -1252,5 +1483,8 @@ Section Lookup.
         (avl_insert 3 c (avl_insert 4 d (avl_insert 2 b (avl_insert 1 a avl_empty))))
       = None.
   Proof. reflexivity. Qed.
+
+  Theorem lookup_In :
+    forall (k:N) (v:T) (t:avl_tree T), avl_lookup k t = Some v -> In (k,v) t.
 
 End Lookup.
