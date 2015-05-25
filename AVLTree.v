@@ -3,11 +3,17 @@ Require Import Bool.
 
 Open Scope N.
 
+(** This data types represents a number that is either negative (-1), zero (0) or 
+ * positive.
+ * It is mostly used to represent the sign of differences (for example, the difference
+ * in the height of the two subtrees in an AVL tree).
+ *)
 Inductive sign : Type :=
   | negative : sign
   | zero : sign
   | positive : sign.
 
+(** Get the opposite sign (maps negative to positive and positive to negative). *)
 Definition sign_negate (a:sign) : sign :=
   match a with
     | negative => positive
@@ -15,6 +21,7 @@ Definition sign_negate (a:sign) : sign :=
     | positive => negative
   end.
 
+(** Two signs are either equal or not. *)
 Definition sign_eq_dec (a b:sign) : {a = b} + {a <> b}.
 Proof.
   destruct a; destruct b; auto || (right; discriminate 1).
@@ -28,8 +35,11 @@ Definition beq_sign (a b:sign) : bool :=
     | (_, _) => false
   end.
 
+(** Definition of an AVL tree. The invariant for this tree (defined later) is that
+ * the difference in height of the left and the right subtree is always between -1 and 1.
+ *)
 Inductive avl_tree (T:Type) : Type :=
-  (* A branch consists of a balance, the left subtree, the key + value and the
+  (** A branch consists of a balance, the left subtree, the key + value and the
    * right subtree. The balance if [positive] if the left subtree's height is greater
    * than the height of the right subtree. If the heights are the same, the balance is
    * [zero], otherwise it will be [negative].
@@ -39,15 +49,18 @@ Inductive avl_tree (T:Type) : Type :=
 Arguments avl_branch [T] _ _ _ _.
 Arguments avl_empty [T].
 
+(** Proposition that states that the given key/value pair is contained in the tree. *)
 Fixpoint In {T:Type} (v:N * T) (t:avl_tree T) : Prop :=
   match t with
     | avl_empty => False
     | avl_branch _ l v' r => v = v' \/ In v l \/ In v r
   end.
 
+(** A tree consisting only of a single element. *)
 Definition avl_singleton {T:Type} (k:N) (v:T) : avl_tree T :=
   avl_branch zero avl_empty (k,v) avl_empty.
 
+(** The empty tree doesn't contain any elements. *)
 Theorem not_In_empty : forall (T:Type) (k:N) (v:T), ~In (k,v) avl_empty.
 Proof. intros. destruct 1. Qed.
 
@@ -55,6 +68,9 @@ Section Height.
 
   Variable T : Type.
 
+  (** Calculate the height of an AVL tree. The height is maximal number of edges from
+   * the root to any leaf.
+   *)
   Fixpoint avl_height (t:avl_tree T) : N :=
     match t with
       | avl_empty => 0
@@ -91,7 +107,6 @@ Section Invariants.
       | avl_branch _ l p r => f (fst p) /\ forall_keys f l /\ forall_keys f r
     end.
   Global Arguments forall_keys : default implicits.
-
 
   Theorem all_keys_greater_chain :
     forall (k k':N) (t:avl_tree T),
@@ -179,20 +194,72 @@ Section Invariants.
     - auto.
   Qed.
 
+  (** Combination of all invariants that an AVL tree has to satisfy. *)
+  Definition avl_tree_invariant (t:avl_tree T) : Prop :=
+    balance_correct t /\ binary_tree_invariant t.
+  Global Arguments avl_tree_invariant : default implicits.
+
+  Theorem In_inv_left :
+    forall (l r:avl_tree T) (k k':N) (v v':T),
+      forall_keys (N.lt k') r -> k < k' ->
+      ((k,v) = (k',v') \/ In (k,v) l \/ In (k,v) r) ->
+      In (k,v) l.
+  Proof.
+    pose N.lt_irrefl as T1. pose N.lt_asymm as T2.
+    intros l r k k' v v' r_all_gt k_lt H.
+    destruct H as [H|[H|H]].
+    - inversion H. subst k'. absurd (k < k); auto.
+    - assumption.
+    - rewrite forall_keys_In_iff in r_all_gt. apply r_all_gt in H.
+      simpl in H. absurd (k < k'); auto.
+  Qed.
+
+  Theorem In_inv_right :
+    forall (l r:avl_tree T) (k k':N) (v v':T),
+      forall_keys (N.gt k') l -> k' < k ->
+      ((k,v) = (k',v') \/ In (k,v) l \/ In (k,v) r) ->
+      In (k,v) r.
+  Proof.
+    pose N.gt_lt as T1. pose N.lt_irrefl as T2. pose N.lt_asymm as T3.
+    intros l r k k' v v' l_all_lt k_gt H. destruct H as [H|[H|H]].
+    - inversion H. subst k'. absurd (k < k); auto.
+    - rewrite forall_keys_In_iff in l_all_lt. apply l_all_lt in H.
+      simpl in *. absurd (k < k'); auto.
+    - assumption.
+  Qed.
+
+  Theorem In_inv_head :
+    forall (l r:avl_tree T) (k:N) (v v':T),
+      forall_keys (N.gt k) l /\ forall_keys (N.lt k) r ->
+      ((k,v) = (k,v') \/ In (k,v) l \/ In (k,v) r) ->
+      v = v'.
+  Proof.
+    pose N.gt_lt as T1. pose N.lt_irrefl as T2. pose N.lt_asymm as T3.
+    intros l r k v v' [l_all_lt r_all_gt] H. destruct H as [H|[H|H]].
+    - inversion H. auto.
+    - rewrite forall_keys_In_iff in l_all_lt. apply l_all_lt in H.
+      absurd (k < k); auto.
+    - rewrite forall_keys_In_iff in r_all_gt. apply r_all_gt in H.
+      absurd (k < k); auto.
+  Qed.
+
 End Invariants.
 
 Section Node.
 
   Variable T : Type.
 
-  (* Calculate the balance change from the height change of a subtree. *)
+  (** Calculate the total balance change for this node from the height change 
+   * of either the left or the right subtree. 
+   * The returned balance change can be applied using [apply_balance_change].
+   *)
   Let balance_change (a:sign + sign) : sign :=
     match a with
       | inl s  => s
       | inr s => sign_negate s
     end.
 
-  (* Apply a balance change.
+  (** Apply a balance change.
    * Returns the new balance if we don't need to do a rotation.
    * Otherwise, returns true if the left tree is higher or
      false if the right tree is higher.
@@ -214,10 +281,10 @@ Section Node.
         end
     end.
 
-  (* Return the height change of the subtree (discarding which subtree changed). *)
+  (** Return the height change of the subtree (discarding which subtree changed). *)
   Let height_change (s:sign + sign) : sign := match s with | inr x => x | inl x => x end.
 
-  (* Rotation for when the right subtree is higher *)
+  (** Rotation for when the right subtree is higher *)
   Let rotate_right (removed:bool) (l:avl_tree T) (p:N * T) (r:avl_tree T)
   : avl_tree T * sign :=
     match r with
@@ -251,7 +318,7 @@ Section Node.
         in (avl_branch b l p r, zero)
     end.
 
-  (* Rotation for when the left subtree is higher *)
+  (** Rotation for when the left subtree is higher *)
   Let rotate_left (removed:bool) (l:avl_tree T) (p:N * T) (r:avl_tree T)
   : avl_tree T * sign :=
     match l with
@@ -334,13 +401,15 @@ Section Node.
        end.
   Global Arguments node : default implicits.
 
+  (** Proof that [rotate_left] preserves the binary_tree_invariant *)
   Lemma rotate_left_binary_tree_invariant :
     forall (b:bool) (p:N * T) (l r:avl_tree T),
       binary_tree_invariant l -> binary_tree_invariant r ->
       forall_keys (N.gt (fst p)) l -> forall_keys (N.lt (fst p)) r ->
       binary_tree_invariant (fst (rotate_left b l p r)).
   Proof.
-    Hint Resolve all_keys_smaller_chain all_keys_greater_chain.
+    pose all_keys_smaller_chain as T1.
+    pose all_keys_greater_chain as T2.
     intros b p l r bt_inv_l bt_inv_r l_smaller r_greater.
     destruct l as [lb ll lp lr|].
     - simpl. destruct lb; destruct lr as [lrb lrl lrp lrr|];
@@ -350,13 +419,15 @@ Section Node.
     - simpl. auto.
   Qed.
 
+  (** Proof that [rotate_right] preserves the binary_tree_invariant *)
   Lemma rotate_right_binary_tree_invariant :
     forall (b:bool) (p:N * T) (l r:avl_tree T),
       binary_tree_invariant l -> binary_tree_invariant r ->
       forall_keys (N.gt (fst p)) l -> forall_keys (N.lt (fst p)) r ->
       binary_tree_invariant (fst (rotate_right b l p r)).
   Proof.
-    Hint Resolve all_keys_smaller_chain all_keys_greater_chain.
+    pose all_keys_smaller_chain as T1.
+    pose all_keys_greater_chain as T2.
     intros b p l r bt_inv_l bt_inv_r l_smaller r_greater.
     destruct r as [rb rl rp rr|].
     - simpl. destruct rb; destruct rl as [rlb rll rlp rlr|];
@@ -365,6 +436,9 @@ Section Node.
     - simpl. auto.
   Qed.
 
+  (** Proof that the result of [rotate_left] contains exactly the same values as it's
+   * input tree.
+   *)
   Lemma rotate_left_same_elements :
     forall (b:bool) (p p':N * T) (l r:avl_tree T),
       In p' (avl_branch zero l p r) <->
@@ -379,6 +453,7 @@ Section Node.
     - simpl. reflexivity.
   Qed.
 
+  (** Like [rotate_left_same_elements], but for [rotate_right] *)
   Lemma rotate_right_same_elements :
     forall (b:bool) (p p':N * T) (l r:avl_tree T),
       In p' (avl_branch zero l p r) <->
@@ -393,17 +468,20 @@ Section Node.
     - simpl. reflexivity.
   Qed.
 
+  (** Proof that [node] preserves the binary tree invariant. *)
   Theorem node_binary_tree_invariant :
     forall (b:sign) (s:sign + sign) (l r:avl_tree T) (p:N * T),
       binary_tree_invariant l -> binary_tree_invariant r ->
       forall_keys (N.gt (fst p)) l -> forall_keys (N.lt (fst p)) r ->
       binary_tree_invariant (fst (node b s l p r)).
   Proof.
-    Hint Resolve rotate_right_binary_tree_invariant rotate_left_binary_tree_invariant.
+    pose rotate_right_binary_tree_invariant as T1.
+    pose rotate_left_binary_tree_invariant as T2.
     intros b s l p v bt_inv_l bt_inv_r l_smaller r_greater. unfold node.
     destruct s as [s|s]; destruct s; destruct b; simpl; auto.
   Qed.
 
+  (** Proof that [node] doesn't change the elements that the tree contains. *)
   Theorem node_same_elements :
     forall (b:sign) (s:sign + sign) (l r:avl_tree T) (p p':N * T),
       p' = p \/ In p' l \/ In p' r <->
@@ -415,6 +493,9 @@ Section Node.
     autorewrite with core; simpl; split; trivial.
   Qed.
 
+  (** Proof that node preserves forall_keys (this is the case since it preserves all
+   * elements
+   *)
   Lemma node_preserve_forall :
     forall (l r:avl_tree T) (p:N * T) (b:sign) (s:sign + sign) (P:N -> Prop),
       forall_keys P l -> forall_keys P r -> P (fst p) ->
@@ -427,6 +508,9 @@ Section Node.
     rewrite_all invert_tuple_eq. intuition (subst; simpl in *; eauto).
   Qed.
 
+  (** This proposition states that the height change returned by a function matches
+   * the real height change.
+   *)
   Definition height_change_correct (c:sign) (t t':avl_tree T) : Prop :=
     match c with
       | negative => avl_height t = N.succ (avl_height t')
@@ -435,6 +519,9 @@ Section Node.
     end.
   Global Arguments height_change_correct : default implicits.
 
+  (** Proposition to state that either the left or the right subtree changed it's height
+   * by the given amount. The other subtree must not have changed at all.
+   *)
   Definition changed_height_in (s:sign + sign) (l l' r r':avl_tree T) : Prop :=
     match s with
       | inl c => r = r' /\ height_change_correct c l l'
@@ -502,7 +589,7 @@ Section Node.
     - simpl in *. apply N.neq_succ_0 in heq. contradiction.
   Qed.
 
-    
+  (** Proof that the tree returned by [node] has correct balance values. *)
   Theorem node_balance_correct :
     forall (l l' r r':avl_tree T) (p:N * T) (b:sign) (s:sign + sign),
       changed_height_in s l l' r r' ->
@@ -558,6 +645,10 @@ Section Node.
     - simpl in *. intuition congruence.
   Qed.
 
+  (** Proposition that the given tree is a result of an insertion that triggered 
+   * a rotation operation. For example, an empty tree can never be a result of an
+   * insert operation.
+   *)
   Definition correct_for_insert (t:avl_tree T) : Prop :=
     match t with
       | avl_branch _ avl_empty _ avl_empty => True
@@ -621,6 +712,7 @@ Section Node.
     - simpl in *. intuition congruence.
   Qed.
 
+  (** Apply [correct_for_insert] only to the subtree which changed. *)
   Definition correct_for_insert_in (s:sign + sign) (l r:avl_tree T) : Prop :=
     match s with
       | inl positive => correct_for_insert l
@@ -745,7 +837,6 @@ Section Node.
     destruct s; destruct b; simpl; auto; try discriminate.
   Qed.
   
-
 End Node.
 
 Section Insert.
@@ -916,6 +1007,27 @@ Section Insert.
     destruct insert_balance_and_height_correct with (k := k) (v := v) (t := t).
     - assumption.
     - apply balance_correct_implies_avl_invariant. unfold avl_insert. auto.
+  Qed.
+  
+  Theorem insert_In_inv :
+    forall (t:avl_tree T) (k:N) (v v':T),
+      binary_tree_invariant t -> In (k, v') (avl_insert k v t) -> v = v'.
+  Proof.
+    pose N.gt_lt as T1. pose N.lt_irrefl as T2. pose N.lt_gt as T3.
+    intros t k v v' bt_inv H. unfold avl_insert in H.
+    induction t as [b l IHl [k'' v''] r IHr|].
+    - simpl in *.
+      destruct (N.compare_spec k k'') as [C|C|C].
+      + simpl in *. subst k''. apply In_inv_head in H; intuition eauto.
+      + destruct (avl_insert_go k v l) as [l' s] eqn:go_eq.
+        rewrite <- node_same_elements in H.
+        simpl in *.
+        apply In_inv_left in H; intuition eauto.
+      + destruct (avl_insert_go k v r) as [r' s] eqn:go_eq.
+        rewrite <- node_same_elements in H.
+        simpl in *.
+        apply In_inv_right in H; intuition eauto.
+    - simpl in *. destruct H as [H|[H|H]]; inversion H; auto.
   Qed.
 
 End Insert.
@@ -1275,6 +1387,8 @@ Section Remove.
     end.
 
   Definition avl_remove (k:N) (t:avl_tree T) : avl_tree T := fst (avl_remove_go k t).
+  Global Arguments avl_remove : default implicits.
+
 
   Example avl_remove_ex1 :
     forall a b c : T,
@@ -1453,6 +1567,40 @@ Section Remove.
     - simpl. auto.
   Qed.
 
+  Theorem remove_balance_correct :
+    forall (t:avl_tree T) (k:N),
+      balance_correct t -> balance_correct (avl_remove k t).
+  Proof.
+    intros t k H.
+    eapply remove_balance_and_height_correct in H.
+    intuition eassumption.
+  Qed.
+
+End Remove.
+
+Section Contains.
+
+  Definition contains {T:Type} (k:N) (p:T -> Prop) (t:avl_tree T) :=
+    exists v, In (k,v) t /\ p v.
+
+  Definition in_domain {T:Type} (k:N) (t:avl_tree T) : Prop :=
+    exists v, In (k,v) t.
+
+  Theorem In_contains :
+    forall (T:Type) (k:N) (P:T -> Prop) (v:T) (t:avl_tree T),
+      In (k,v) t -> P v -> contains k P t.
+  Proof.
+    intros T k p v t H P. unfold contains. eauto.
+  Qed.
+
+  Theorem In_in_domain :
+    forall (T:Type) (t:avl_tree T) (k:N) (v:T), In (k,v) t -> in_domain k t.
+  Proof.
+    intros T t k v H. unfold in_domain. exists v. assumption.
+  Qed.
+
+End Contains.
+
 Section Lookup.
 
   Variable T : Type.
@@ -1467,6 +1615,7 @@ Section Lookup.
           | Eq => Some v
         end
     end.
+  Global Arguments avl_lookup : default implicits.
 
   Example avl_lookup_ex1 :
     forall a b c d : T,
@@ -1482,9 +1631,421 @@ Section Lookup.
         5
         (avl_insert 3 c (avl_insert 4 d (avl_insert 2 b (avl_insert 1 a avl_empty))))
       = None.
-  Proof. reflexivity. Qed.
+  Proof. reflexivity. Qed.  
 
   Theorem lookup_In :
     forall (k:N) (v:T) (t:avl_tree T), avl_lookup k t = Some v -> In (k,v) t.
+  Proof.
+    intros k v t.
+    induction t as [b l IHl [k' v'] r IHr|].
+    - simpl. destruct (N.compare_spec k k') as [C|C|C].
+      + injection 1. intros. subst. tauto.
+      + intuition auto.
+      + intuition auto.
+    - simpl. discriminate 1.
+  Qed.
+
+  Theorem lookup_not_In :
+    forall (t:avl_tree T) (k:N),
+      binary_tree_invariant t -> avl_lookup k t = None -> ~in_domain k t.
+  Proof.
+    intros t k bt_inv H. unfold in_domain. intros A.
+    induction t as [b l IHl [k' v'] r IHr|].
+    - simpl in *. destruct A as [v [A|[A|A]]].
+      + inversion A. subst.  rewrite N.compare_refl in H. discriminate.
+      + rewrite_all forall_keys_In_iff.
+        replace (k ?= k') with Lt in H.
+        * intuition eauto.
+        * symmetry.  apply N.compare_lt_iff. apply N.gt_lt_iff.
+          destruct bt_inv as [bt_inv _]. apply bt_inv with (p := (k,v)); auto.
+      + rewrite_all forall_keys_In_iff.
+        replace (k ?= k') with Gt in H.
+        * intuition eauto.
+        * symmetry. apply N.compare_gt_iff.
+          destruct bt_inv as [_ [bt_inv _]]. apply bt_inv with (p := (k,v)); auto.
+    - simpl in *. destruct A. assumption.
+  Qed.
+
+  Theorem In_lookup :
+    forall (t:avl_tree T) (k:N) (v:T),
+      binary_tree_invariant t -> In (k,v) t -> avl_lookup k t = Some v.
+  Proof.
+    intros t k v bt_inv H. induction t as [b l IHl [k' v'] r IHr|].
+    - simpl in *. destruct (N.compare_spec k k') as [C|C|C].
+      + subst k'. apply In_inv_head in H; subst; tauto.
+      + apply In_inv_left in H; tauto.
+      + apply In_inv_right in H; tauto.
+    - inversion H.
+  Qed.
+
+  Theorem In_lookup_iff :
+    forall (t:avl_tree T) (k:N) (v:T),
+      binary_tree_invariant t -> (In (k,v) t <-> avl_lookup k t = Some v).
+  Proof.
+    pose In_lookup as T1. pose lookup_In as T2.
+    intros t k v bt_inv. split; auto.
+  Qed.
+
+
+
+  Theorem In_eq :
+    forall (t:avl_tree T) (k:N) (v v':T),
+      binary_tree_invariant t ->
+      In (k,v) t -> In (k, v') t -> v = v'.
+  Proof.
+    intros t k v v' bt_inv. rewrite ?In_lookup_iff.
+    - intros P Q. rewrite P in Q. inversion Q. reflexivity.
+    - assumption.
+    - assumption.
+  Qed.
 
 End Lookup.
+
+Section Update.
+  Variable T : Type.
+
+  Definition avl_update (k:N) (f:T -> T) (t:avl_tree T) :=
+    match avl_lookup k t with
+      | None => t
+      | Some v => avl_insert k (f v) t
+    end.
+  Global Arguments avl_update : default implicits.
+
+  Theorem update_preserve_other :
+    forall (t:avl_tree T) (k:N) (f:T -> T) (p:N * T),
+      fst p <> k -> (In p t <-> In p (avl_update k f t)).
+  Proof.
+    pose insert_preserve_other as T1.
+    intros t k f p k_ineq. unfold avl_update. destruct p.
+    destruct (avl_lookup k t); auto || reflexivity.
+  Qed.
+
+  Theorem update_In_inv :
+    forall (t:avl_tree T) (k:N) (f:T -> T) (v:T),
+      binary_tree_invariant t ->
+      (In (k,v) (avl_update k f t) <-> (exists x, In (k,x) t /\ f x = v)).
+  Proof.
+    pose lookup_In as T1. pose insert_In_inv as T2. pose insert_In as T3.
+    intros t k f v bt_inv. unfold avl_update.
+    destruct (avl_lookup k t) as [x|] eqn:lookup.
+    - simpl. split.
+      + eauto.
+      + destruct 1 as [x' [in_t fe]]. apply In_lookup in in_t.
+        * rewrite lookup in in_t. inversion in_t. subst. auto.
+        * assumption.
+    - simpl. split.
+      + rewrite In_lookup_iff. 
+        * rewrite lookup. discriminate 1.
+        * assumption.
+      + destruct 1 as [x [in_t fe]]. apply In_lookup in in_t.
+        * rewrite in_t in lookup. discriminate.
+        * assumption.
+  Qed.
+
+  Theorem update_binary_tree_invariant :
+    forall (t:avl_tree T) (k:N) (f:T -> T),
+      binary_tree_invariant t -> binary_tree_invariant (avl_update k f t).
+  Proof.
+    intros t k f bt_inv_t. unfold avl_update. pose insert_binary_tree_invariant as T1.
+    destruct (avl_lookup k t); auto.
+  Qed.
+
+  Theorem update_balance_correct :
+    forall (t:avl_tree T) (k:N) (f:T -> T),
+      balance_correct t -> balance_correct (avl_update k f t).
+  Proof.
+    intros t k f bt_inv_t. unfold avl_update. pose insert_balance_correct as T1.
+    destruct (avl_lookup k t); auto.
+  Qed.
+
+End Update.
+
+Section InsertMerge.
+  Variable T : Type.
+  
+  Definition avl_insert_merge (k:N) (f:T -> T) (def:T) (t:avl_tree T) : avl_tree T :=
+    avl_insert k (match avl_lookup k t with | Some v => f v | None => def end) t.
+  Global Arguments avl_insert_merge : default implicits.
+
+  Theorem insert_merge_contains :
+    forall (t:avl_tree T) (k:N) (f:T -> T) (def:T) (P:T -> Prop),
+      binary_tree_invariant t ->
+      (~in_domain k t -> P def) ->
+      (forall v, In (k,v) t -> P (f v)) -> contains k P (avl_insert_merge k f def t).
+  Proof.
+    intros t k f def P bt_inv Pdef Pf. unfold contains. unfold avl_insert_merge.
+    pose lookup_In. pose insert_In. pose lookup_not_In.
+    destruct (avl_lookup k t) as [v|] eqn:lookup.
+    - exists (f v). split; auto.
+    - apply lookup_not_In in lookup; eauto.
+  Qed.
+
+  Theorem insert_merge_In_inv :
+    forall (t:avl_tree T) (k:N) (v def:T) (f:T -> T),
+      binary_tree_invariant t ->
+      In (k,v) (avl_insert_merge k f def t) ->
+      (~in_domain k t /\ v = def) \/ (contains k (fun x => f x = v) t).
+  Proof.
+    pose lookup_In as T1. pose lookup_not_In as T2.
+    intros t k v def f bt_inv in_merge.
+    unfold avl_insert_merge in in_merge. unfold contains.
+    apply insert_In_inv in in_merge.
+    - destruct (avl_lookup k t) as [v'|] eqn:lookup; eauto.
+    - assumption.
+  Qed.
+
+  Theorem insert_merge_preserve_other :
+    forall (t:avl_tree T) (k:N) (f:T -> T) (def:T) (p:N * T),
+      k <> fst p -> (In p t <-> In p (avl_insert_merge k f def t)).
+  Proof.
+    pose insert_preserve_other. destruct p. unfold avl_insert_merge. auto.
+  Qed.
+
+  Theorem insert_merge_binary_tree_invariant :
+    forall (t:avl_tree T) (k:N) (f:T -> T) (def:T),
+      binary_tree_invariant t -> binary_tree_invariant (avl_insert_merge k f def t).
+  Proof.
+    pose insert_binary_tree_invariant as T1.
+    intros t k f def inv_t. unfold avl_insert_merge. auto.
+  Qed.
+
+  Theorem insert_merge_balance_correct :
+    forall (t:avl_tree T) (k:N) (f:T -> T) (def:T),
+      balance_correct t -> balance_correct (avl_insert_merge k f def t).
+  Proof.
+    pose insert_balance_correct as T1.
+    intros t k f def bal_t. unfold avl_insert_merge. auto.
+  Qed.
+
+End InsertMerge.
+
+Require List.
+Open Scope list.
+
+Section Elems.
+  Variable T : Type.
+        
+  Fixpoint avl_elems (t:avl_tree T) : list (N * T) :=
+    match t with
+      | avl_empty => nil
+      | avl_branch _ l e r => e :: avl_elems l ++ avl_elems r
+    end.
+  Global Arguments avl_elems : default implicits.
+
+  Theorem elems_In_iff :
+    forall (t:avl_tree T) (p:N * T),
+      List.In p (avl_elems t) <-> In p t.
+  Proof.
+    intros t p. induction t as [b l IHl tp r IHr|].
+    - simpl. rewrite <- IHr. rewrite <- IHl. rewrite List.in_app_iff.
+      assert (H: (tp = p) <-> (p = tp)) by (split; intros; subst; reflexivity).
+      rewrite H. reflexivity.
+    - reflexivity.
+  Qed.
+End Elems.
+
+Section Filter.
+  Variable T : Type.
+
+  Fixpoint avl_remove_many (ks:list N) (t:avl_tree T) : avl_tree T :=
+    match ks with
+      | nil     => t
+      | k :: kt => avl_remove k (avl_remove_many kt t)
+    end.
+
+  Theorem remove_many_subset :
+    forall (ks:list N) (t:avl_tree T) (p:N * T),
+      In p (avl_remove_many ks t) -> In p t.
+  Proof.
+    intros ks t p in_remove. pose remove_subset.
+    induction ks as [|k kt IH]; eauto.
+  Qed.
+
+  Theorem remove_many_binary_tree_invariant :
+    forall (ks:list N) (t:avl_tree T) (k:N) (v:T),
+      binary_tree_invariant t -> binary_tree_invariant (avl_remove_many ks t).
+  Proof.
+    intros ks t k v. pose remove_binary_tree_invariant. induction ks; simpl; auto.
+  Qed.
+
+  Theorem remove_many_balance_correct :
+    forall (ks:list N) (t:avl_tree T) (k:N) (v:T),
+      balance_correct t -> balance_correct (avl_remove_many ks t).
+  Proof.
+    intros ks t k v H.
+    induction ks as [|kh kt IH].
+    - simpl. auto.
+    - eapply remove_balance_and_height_correct in IH. simpl in *.
+      unfold avl_remove. intuition eassumption.
+  Qed.
+
+  Theorem remove_many_not_In :
+    forall (ks:list N) (t:avl_tree T) (k:N) (v:T),
+      binary_tree_invariant t -> In (k,v) (avl_remove_many ks t) -> ~(List.In k ks).
+  Proof.
+    intros ks t k v bt_inv in_remove. induction ks as [|k' kt IH].
+    - simpl. auto.
+    - simpl.
+      pose remove_not_In as T1. pose remove_many_binary_tree_invariant as T2.
+      pose remove_subset as T3. unfold not in *.
+      destruct 1; simpl in *; subst; eauto.
+  Qed.
+
+  Theorem remove_many_preserve_other :
+    forall (ks:list N) (t:avl_tree T) (k:N) (v:T),
+      ~(List.In k ks) -> (In (k,v) t <-> In (k,v) (avl_remove_many ks t)).
+  Proof.
+    intros ks t k v not_in_ks. induction ks as [|k' kt IH].
+    - simpl. reflexivity.
+    - simpl in *. assert (H:k <> k') by (intros eq; symmetry in eq; tauto).
+      rewrite IH by tauto. rewrite remove_preserve_other with (k := k'). simpl.
+      split.
+      + destruct 1; assumption || exfalso; tauto.
+      + tauto.
+  Qed.
+
+  Definition avl_filter (f:N -> T -> bool) (t:avl_tree T) : avl_tree T :=
+    avl_remove_many
+      (List.map (fun (p:N*T) => let (k,v) := p in k)
+      (List.filter (fun (p:N*T) => let (k,v) := p in negb (f k v)) (avl_elems t))) t.
+  Global Arguments avl_filter : default implicits.
+
+  Theorem filter_subset :
+    forall (t:avl_tree T) (p:N * T) (f:N -> T -> bool),
+      In p (avl_filter f t) -> In p t.
+  Proof.
+    unfold avl_filter.
+    intros t p f. apply remove_many_subset.
+  Qed.
+
+  Theorem filter_predicate_true :
+    forall (t:avl_tree T) (k:N) (v:T) (f:N -> T -> bool),
+      binary_tree_invariant t -> In (k,v) (avl_filter f t) -> f k v = true.
+  Proof.
+    unfold avl_filter. intros t k v f bt_inv in_filter.
+    assert (in_t := in_filter). apply remove_many_subset in in_t.
+    destruct (f k v) eqn:fe.
+    - reflexivity.
+    - apply remove_many_not_In in in_filter.
+      + rewrite List.in_map_iff in in_filter. 
+        exfalso. apply in_filter. exists (k,v). split.
+        * reflexivity.
+        * apply List.filter_In. rewrite elems_In_iff. rewrite fe. simpl. tauto.
+      + assumption.
+  Qed.
+
+  Theorem filter_In :
+    forall (f:N -> T -> bool) (t:avl_tree T) (k:N) (v:T),
+      binary_tree_invariant t -> ((f k v = true /\ In (k,v) t) <-> In (k,v) (avl_filter f t)).
+  Proof.
+    intros f t k v bt_inv. split.
+    - destruct 1 as [ft in_t]. unfold avl_filter. apply remove_many_preserve_other.
+      + intros H. rewrite List.in_map_iff in H. destruct H as [[k' v'] H].
+        rewrite List.filter_In in H. destruct H as [keq [k'_in_t fe]].
+        subst k'. replace v' with v in *.
+        * rewrite ft in fe. discriminate.
+        * apply elems_In_iff in k'_in_t. eapply In_eq in in_t; eauto.
+      + auto.
+    - pose filter_subset as T1. pose filter_predicate_true as T2. eauto.
+  Qed.
+
+  Theorem filter_binary_tree_invariant :
+    forall (f:N -> T -> bool) (t:avl_tree T) (k:N) (v:T),
+      binary_tree_invariant t -> binary_tree_invariant (avl_filter f t).
+  Proof.
+    pose remove_many_binary_tree_invariant. unfold avl_filter. auto.
+  Qed.
+
+  Theorem filter_balance_correct :
+    forall (f:N -> T -> bool) (t:avl_tree T) (k:N) (v:T),
+      balance_correct t -> balance_correct (avl_filter f t).
+  Proof.
+    pose remove_many_balance_correct. unfold avl_filter. auto.
+  Qed.
+End Filter.
+
+Section Map.
+  Variable A B : Type.
+  
+  Fixpoint avl_map (f:N -> A -> B) (t:avl_tree A) : avl_tree B :=
+    match t with
+      | avl_empty => avl_empty
+      | avl_branch b l (k,v) r => avl_branch b (avl_map f l) (k, f k v) (avl_map f r)
+    end.
+  Global Arguments avl_map : default implicits.
+
+  Theorem map_updates_all :
+    forall (t:avl_tree A) (f:N -> A -> B) (k:N) (v:A),
+      In (k,v) t -> In (k,f k v) (avl_map f t).
+  Proof.
+    intros t f k v in_t. induction t as [b l IHl [k' v'] r IHr|].
+    - simpl in *. rewrite invert_tuple_eq in in_t. intuition (subst; auto).
+    - contradiction.
+  Qed.
+
+  Theorem In_map_iff :
+    forall (f:N -> A -> B) (t:avl_tree A) (b:B) (k:N),
+      In (k, b) (avl_map f t) <-> exists a : A, b = f k a /\ In (k,a) t.
+  Proof.
+    intros f t b k. induction t as [tb tl tlIH [tk tv] tr trIH|].
+    - simpl in *. rewrite tlIH. rewrite trIH. rewrite invert_tuple_eq.
+      split.
+      + destruct 1 as [H|[H|H]]; destruct H; subst; intuition eauto.
+      + destruct 1 as [a H]. rewrite invert_tuple_eq in H. intuition (subst; eauto).
+    - simpl. split; destruct 1; intuition contradiction.
+  Qed.
+
+  Theorem map_preserve_domain :
+    forall (t:avl_tree A) (f:N -> A -> B) (k:N),
+      in_domain k t <-> in_domain k (avl_map f t).
+  Proof.
+    pose In_in_domain as T1. pose map_updates_all as T2.
+    split.
+    - destruct 1. eauto.
+    - unfold in_domain. destruct 1 as [v in_map]. apply In_map_iff in in_map as [a H].
+      intuition eauto.
+  Qed.
+
+  Theorem map_forall_keys :
+    forall (f:N -> A -> B) (t:avl_tree A) (P:N -> Prop),
+      forall_keys P t <-> forall_keys P (avl_map f t).
+  Proof.
+    intros f t P. induction t as [b l IHl [k v] r IHr|].
+    - simpl in *. rewrite IHl. rewrite IHr. reflexivity.
+    - simpl. reflexivity.
+  Qed.
+
+  Theorem map_binary_tree_invariant :
+    forall (f:N -> A -> B) (t:avl_tree A),
+      binary_tree_invariant t -> binary_tree_invariant (avl_map f t).
+  Proof.
+    intros f t bt_inv_t. induction t as [b l IHl [k v] r IHr|].
+    - simpl in *. rewrite <- ?map_forall_keys. intuition auto.
+    - simpl. auto.
+  Qed.
+
+  Theorem map_height_unchanged :
+    forall (f:N -> A -> B) (t:avl_tree A), avl_height t = avl_height (avl_map f t).
+  Proof.
+    intros f t. induction t as [b l IHl [k v] r IHr|].
+    - simpl in *. congruence.
+    - auto.
+  Qed.
+
+  Theorem map_balanced_with :
+    forall (f g:N -> A -> B) (l r:avl_tree A) (b:sign),
+      balanced_with A b l r <-> balanced_with B b (avl_map f l) (avl_map g r).
+  Proof.
+    pose map_height_unchanged as T1.
+    intros f g l r b. unfold balanced_with. destruct b; split; congruence.
+  Qed.
+
+  Theorem map_balance_correct :
+    forall (f:N -> A -> B) (t:avl_tree A),
+      balance_correct t -> balance_correct (avl_map f t).
+  Proof.
+    intros f t bal_t. induction t as [b l IHl [k v] r IHr|].
+    - simpl in *. rewrite <- map_balanced_with. tauto.
+    - simpl. auto.
+  Qed.
+End Map.
