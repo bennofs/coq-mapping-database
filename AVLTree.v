@@ -44,24 +44,24 @@ Inductive avl_tree (T:Type) : Type :=
    * than the height of the right subtree. If the heights are the same, the balance is
    * [zero], otherwise it will be [negative].
    *)
-  | avl_branch : sign -> avl_tree T -> N * T -> avl_tree T -> avl_tree T
-  | avl_empty  : avl_tree T.
-Arguments avl_branch [T] _ _ _ _.
-Arguments avl_empty [T].
+  | Avl_branch : sign -> avl_tree T -> N * T -> avl_tree T -> avl_tree T
+  | Avl_empty  : avl_tree T.
+Arguments Avl_branch [T] _ _ _ _.
+Arguments Avl_empty [T].
 
 (** Proposition that states that the given key/value pair is contained in the tree. *)
 Fixpoint In {T:Type} (v:N * T) (t:avl_tree T) : Prop :=
   match t with
-    | avl_empty => False
-    | avl_branch _ l v' r => v = v' \/ In v l \/ In v r
+    | Avl_empty => False
+    | Avl_branch _ l v' r => v = v' \/ In v l \/ In v r
   end.
 
 (** A tree consisting only of a single element. *)
 Definition avl_singleton {T:Type} (k:N) (v:T) : avl_tree T :=
-  avl_branch zero avl_empty (k,v) avl_empty.
+  Avl_branch zero Avl_empty (k,v) Avl_empty.
 
 (** The empty tree doesn't contain any elements. *)
-Theorem not_In_empty : forall (T:Type) (k:N) (v:T), ~In (k,v) avl_empty.
+Theorem not_In_empty : forall (T:Type) (k:N) (v:T), ~In (k,v) Avl_empty.
 Proof. intros. destruct 1. Qed.
 
 Section Height.
@@ -73,26 +73,26 @@ Section Height.
    *)
   Fixpoint avl_height (t:avl_tree T) : N :=
     match t with
-      | avl_empty => 0
-      | avl_branch _ l _ r => N.succ (N.max (avl_height l) (avl_height r))
+      | Avl_empty => 0
+      | Avl_branch _ l _ r => N.succ (N.max (avl_height l) (avl_height r))
     end.
   Global Arguments avl_height : default implicits.
 
-  Example avl_height_ex_empty : avl_height avl_empty = 0.
+  Example avl_height_ex_empty : avl_height Avl_empty = 0.
   Proof. reflexivity. Qed.
 
   Example avl_height_ex_1 :
     forall a b c d : T,
       avl_height
-        (avl_branch
+        (Avl_branch
            negative
            (avl_singleton 1 a)
            (2,b)
-           (avl_branch
+           (Avl_branch
               positive
               (avl_singleton 3 c)
               (4,d)
-              avl_empty)) = 3.
+              Avl_empty)) = 3.
   Proof. reflexivity. Qed.
 
 End Height.
@@ -103,8 +103,8 @@ Section Invariants.
 
   Fixpoint forall_keys (f:N -> Prop) (t:avl_tree T) : Prop :=
     match t with
-      | avl_empty => True
-      | avl_branch _ l p r => f (fst p) /\ forall_keys f l /\ forall_keys f r
+      | Avl_empty => True
+      | Avl_branch _ l p r => f (fst p) /\ forall_keys f l /\ forall_keys f r
     end.
   Global Arguments forall_keys : default implicits.
 
@@ -156,8 +156,8 @@ Section Invariants.
 
   Fixpoint binary_tree_invariant (t:avl_tree T) : Prop :=
     match t with
-      | avl_empty => True
-      | avl_branch _ l p r =>
+      | Avl_empty => True
+      | Avl_branch _ l p r =>
         forall_keys (N.gt (fst p)) l /\ forall_keys (N.lt (fst p)) r /\
         binary_tree_invariant l /\ binary_tree_invariant r
     end.
@@ -165,8 +165,8 @@ Section Invariants.
 
   Fixpoint avl_invariant (t:avl_tree T) : Prop :=
     match t with
-      | avl_empty => True
-      | avl_branch _ l _ r =>
+      | Avl_empty => True
+      | Avl_branch _ l _ r =>
         (avl_height l = avl_height r \/ avl_height l = N.succ (avl_height r) \/ N.succ (avl_height l) = avl_height r)
         /\ avl_invariant l /\ avl_invariant r
     end.
@@ -181,8 +181,8 @@ Section Invariants.
 
   Fixpoint balance_correct (t:avl_tree T) : Prop :=
     match t with
-      | avl_empty => True
-      | avl_branch b l _ r => balanced_with b l r /\ balance_correct l /\ balance_correct r
+      | Avl_empty => True
+      | Avl_branch b l _ r => balanced_with b l r /\ balance_correct l /\ balance_correct r
     end.
   Global Arguments balance_correct : default implicits.
 
@@ -288,64 +288,64 @@ Section Node.
   Let rotate_right (removed:bool) (l:avl_tree T) (p:N * T) (r:avl_tree T)
   : avl_tree T * sign :=
     match r with
-      | avl_branch positive (avl_branch rlb rll rlp rlr) rp rr =>
-        ( avl_branch
+      | Avl_branch positive (Avl_branch rlb rll rlp rlr) rp rr =>
+        ( Avl_branch
             zero
-            (avl_branch (if beq_sign rlb negative then positive else zero) l p rll)
+            (Avl_branch (if beq_sign rlb negative then positive else zero) l p rll)
             rlp
-            (avl_branch (if beq_sign rlb positive then negative else zero) rlr rp rr)
+            (Avl_branch (if beq_sign rlb positive then negative else zero) rlr rp rr)
           , if removed then negative else zero
         )
-      | avl_branch b rl rp rr =>
+      | Avl_branch b rl rp rr =>
         let b' := if beq_sign b zero then positive else zero in
-        ( avl_branch
+        ( Avl_branch
             b'
-            (avl_branch (sign_negate b') l p rl)
+            (Avl_branch (sign_negate b') l p rl)
             rp
             rr
           , if removed && beq_sign b negative then negative else zero
         )
-      | avl_empty =>
+      | Avl_empty =>
         (* This branch should never happen, because if the right subtree has height zero,
          * it cannot be higher than the left subtree.
          * In this case, we still return the tree without doing a rotation, because that
          * way the invariant of the tree is preserved, which makes the proofs simpler.
          *)
         let b := match l with
-                   | avl_empty => zero
+                   | Avl_empty => zero
                    | _ => positive
                  end
-        in (avl_branch b l p r, zero)
+        in (Avl_branch b l p r, zero)
     end.
 
   (** Rotation for when the left subtree is higher *)
   Let rotate_left (removed:bool) (l:avl_tree T) (p:N * T) (r:avl_tree T)
   : avl_tree T * sign :=
     match l with
-      | avl_branch negative ll lp (avl_branch lrb lrl lrp lrr) =>
-        ( avl_branch
+      | Avl_branch negative ll lp (Avl_branch lrb lrl lrp lrr) =>
+        ( Avl_branch
             zero
-            (avl_branch (if beq_sign lrb negative then positive else zero) ll lp lrl)
+            (Avl_branch (if beq_sign lrb negative then positive else zero) ll lp lrl)
             lrp
-            (avl_branch (if beq_sign lrb positive then negative else zero) lrr p r)
+            (Avl_branch (if beq_sign lrb positive then negative else zero) lrr p r)
           , if removed then negative else zero
         )
-      | avl_branch b ll lp lr =>
+      | Avl_branch b ll lp lr =>
         let b' := if beq_sign zero b then negative else zero in
-        ( avl_branch
+        ( Avl_branch
             b'
             ll
             lp
-            (avl_branch (sign_negate b') lr p r)
+            (Avl_branch (sign_negate b') lr p r)
           , if removed && beq_sign b positive then negative else zero
         )
-      | avl_empty =>
+      | Avl_empty =>
         (* See comment for this branch in [rotate_right] *)
         let b := match r with
-                   | avl_empty => zero
+                   | Avl_empty => zero
                    | _         => negative
                  end
-        in (avl_branch b avl_empty p r, zero)
+        in (Avl_branch b Avl_empty p r, zero)
     end.
 
   (* This function recreates a tree node after one of it's subtrees changed.
@@ -372,7 +372,7 @@ Section Node.
       (* In this case, the subtree height did not change at all so the balance
        * stays the same.
        *)
-      (avl_branch b l p r, zero)
+      (Avl_branch b l p r, zero)
     else let hd := height_change s in
        match apply_balance_change (balance_change s) b with
         | inl true  => rotate_left (beq_sign hd negative) l p r
@@ -383,7 +383,7 @@ Section Node.
             (* The subtree height increased, but the balance is now zero. This means
              * that the height of the smaller subtree must have increased (if not, the
              * node would be unbalanced), so the height of the node did not change *)
-            (avl_branch b' l p r, zero)
+            (Avl_branch b' l p r, zero)
           else
             if beq_sign hd negative && negb (beq_sign b' zero)
             then
@@ -392,12 +392,12 @@ Section Node.
                * one subtree, the height of the node cannot have changed if it is still
                * balanced.
                *)
-              (avl_branch b' l p r, zero)
+              (Avl_branch b' l p r, zero)
             else
               (* In all other cases, the change in the height of the node is the same
                * as the subtree height change.
                *)
-              (avl_branch b' l p r, hd)
+              (Avl_branch b' l p r, hd)
        end.
   Global Arguments node : default implicits.
 
@@ -441,7 +441,7 @@ Section Node.
    *)
   Lemma rotate_left_same_elements :
     forall (b:bool) (p p':N * T) (l r:avl_tree T),
-      In p' (avl_branch zero l p r) <->
+      In p' (Avl_branch zero l p r) <->
       In p' (fst (rotate_left b l p r)).
   Proof.
     intros b p p' l r.
@@ -456,7 +456,7 @@ Section Node.
   (** Like [rotate_left_same_elements], but for [rotate_right] *)
   Lemma rotate_right_same_elements :
     forall (b:bool) (p p':N * T) (l r:avl_tree T),
-      In p' (avl_branch zero l p r) <->
+      In p' (Avl_branch zero l p r) <->
       In p' (fst (rotate_right b l p r)).
   Proof.
     intros b p p' l r.
@@ -593,7 +593,7 @@ Section Node.
   Theorem node_balance_correct :
     forall (l l' r r':avl_tree T) (p:N * T) (b:sign) (s:sign + sign),
       changed_height_in s l l' r r' ->
-      balance_correct (avl_branch b l p r) ->
+      balance_correct (Avl_branch b l p r) ->
       balance_correct l' -> balance_correct r' ->
       balance_correct (fst (node b s l' p r')).
   Proof.
@@ -613,7 +613,7 @@ Section Node.
       avl_height r = N.succ (avl_height r') ->
       balance_correct l ->
       height_change_correct (snd (rotate_left true l p r'))
-                            (avl_branch positive l p r)
+                            (Avl_branch positive l p r)
                             (fst (rotate_left true l p r')).
   Proof.
     pose max_succ_id_r. pose N.max_comm. pose N.max_assoc. pose N.max_id.
@@ -632,7 +632,7 @@ Section Node.
       avl_height l = N.succ (avl_height l') ->
       balance_correct r ->
       height_change_correct (snd (rotate_right true l' p r))
-                            (avl_branch negative l p r)
+                            (Avl_branch negative l p r)
                             (fst (rotate_right true l' p r)).
   Proof.
     pose max_succ_id_r. pose N.max_comm. pose N.max_assoc. pose N.max_id.
@@ -651,9 +651,9 @@ Section Node.
    *)
   Definition correct_for_insert (t:avl_tree T) : Prop :=
     match t with
-      | avl_branch _ avl_empty _ avl_empty => True
-      | avl_branch b l _ r => b <> zero
-      | avl_empty          => False
+      | Avl_branch _ Avl_empty _ Avl_empty => True
+      | Avl_branch b l _ r => b <> zero
+      | Avl_empty          => False
     end.
   Global Arguments correct_for_insert : default implicits.
 
@@ -663,7 +663,7 @@ Section Node.
       avl_height l' = N.succ (avl_height l) ->
       correct_for_insert l' -> balance_correct l' ->
       height_change_correct (snd (rotate_left false l' p r))
-                            (avl_branch positive l p r)
+                            (Avl_branch positive l p r)
                             (fst (rotate_left false l' p r)).
   Proof.
     pose max_succ_id_r. pose max_succ_id_l. pose N.max_id. pose N.succ_max_distr. 
@@ -691,7 +691,7 @@ Section Node.
       avl_height r' = N.succ (avl_height r) ->
       correct_for_insert r' -> balance_correct r' ->
       height_change_correct (snd (rotate_right false l p r'))
-                            (avl_branch positive l p r)
+                            (Avl_branch positive l p r)
                             (fst (rotate_right false l p r')).
   Proof.
     pose max_succ_id_r. pose max_succ_id_l. pose N.max_id. pose N.succ_max_distr. 
@@ -724,9 +724,9 @@ Section Node.
     forall (b:sign) (s:sign + sign) (l l' r r':avl_tree T) (p:N * T),
       changed_height_in s l l' r r' ->
       correct_for_insert_in s l' r' ->
-      balance_correct (avl_branch b l p r) -> balance_correct l' -> balance_correct r' ->
+      balance_correct (Avl_branch b l p r) -> balance_correct l' -> balance_correct r' ->
       height_change_correct (snd (node b s l' p r'))
-                            (avl_branch b l p r)
+                            (Avl_branch b l p r)
                             (fst (node b s l' p r')).
   Proof.
     pose max_succ_id_r. pose max_succ_id_l. pose N.max_id. pose N.succ_max_distr. 
@@ -845,10 +845,10 @@ Section Insert.
 
   Fixpoint avl_insert_go (k:N) (v:T) (t:avl_tree T) : avl_tree T * sign :=
     match t with
-      | avl_empty => (avl_branch zero avl_empty (k,v) avl_empty, positive)
-      | avl_branch b l (k',v') r =>
+      | Avl_empty => (Avl_branch zero Avl_empty (k,v) Avl_empty, positive)
+      | Avl_branch b l (k',v') r =>
         match N.compare k k' with
-          | Eq => (avl_branch b l (k,v) r, zero)
+          | Eq => (Avl_branch b l (k,v) r, zero)
           | Lt =>
             let (l', s) := avl_insert_go k v l
             in node b (inl s) l' (k',v') r
@@ -864,29 +864,29 @@ Section Insert.
 
   Example avl_insert_ex1 :
     forall a b c : T,
-      avl_insert 1 a (avl_insert 2 b (avl_insert 3 c avl_empty)) =
-      avl_branch zero
-                 (avl_branch zero avl_empty (1,a) avl_empty)
+      avl_insert 1 a (avl_insert 2 b (avl_insert 3 c Avl_empty)) =
+      Avl_branch zero
+                 (Avl_branch zero Avl_empty (1,a) Avl_empty)
                  (2,b)
-                 (avl_branch zero avl_empty (3,c) avl_empty).
+                 (Avl_branch zero Avl_empty (3,c) Avl_empty).
   Proof. intros. unfold avl_insert. simpl. reflexivity. Qed.
 
   Example avl_insert_ex2 :
     forall a b c d : T,
-      avl_insert 3 c (avl_insert 4 d (avl_insert 2 b (avl_insert 1 a avl_empty))) =
-      avl_branch negative
-                 (avl_branch zero avl_empty (1,a) avl_empty)
+      avl_insert 3 c (avl_insert 4 d (avl_insert 2 b (avl_insert 1 a Avl_empty))) =
+      Avl_branch negative
+                 (Avl_branch zero Avl_empty (1,a) Avl_empty)
                  (2,b)
-                 (avl_branch positive
-                             (avl_branch zero avl_empty (3,c) avl_empty)
+                 (Avl_branch positive
+                             (Avl_branch zero Avl_empty (3,c) Avl_empty)
                              (4,d)
-                             avl_empty).
+                             Avl_empty).
   Proof. intros. reflexivity. Qed.
 
   Example avl_insert_ex3 :
     forall a b c d : T,
-      avl_insert 3 c (avl_insert 2 b (avl_insert 4 d (avl_insert 1 a avl_empty))) =
-      avl_insert 3 c (avl_insert 4 d (avl_insert 2 b (avl_insert 1 a avl_empty))).
+      avl_insert 3 c (avl_insert 2 b (avl_insert 4 d (avl_insert 1 a Avl_empty))) =
+      avl_insert 3 c (avl_insert 4 d (avl_insert 2 b (avl_insert 1 a Avl_empty))).
   Proof. intros. reflexivity. Qed.
 
   Theorem insert_In :
@@ -1037,15 +1037,15 @@ Section Minimum.
 
   Fixpoint avl_find_minimum (t:avl_tree T) (def:N * T): (N * T) :=
     match t with
-      | avl_empty => def
-      | avl_branch lb ll lp lr => avl_find_minimum ll lp
+      | Avl_empty => def
+      | Avl_branch lb ll lp lr => avl_find_minimum ll lp
     end.
   Global Arguments avl_find_minimum : default implicits.
 
   Example avl_find_minimum_ex1 :
     forall a b c d : T,
       avl_find_minimum
-        (avl_insert 1 a (avl_insert 2 b (avl_insert 3 c (avl_insert 4 d avl_empty))))
+        (avl_insert 1 a (avl_insert 2 b (avl_insert 3 c (avl_insert 4 d Avl_empty))))
         (5,d)
       = (1,a).
   Proof. intros. reflexivity. Qed.
@@ -1084,8 +1084,8 @@ Section Minimum.
   Fixpoint avl_remove_minimum_go (b:sign) (l:avl_tree T) (p:N * T) (r:avl_tree T)
   : (avl_tree T * sign) :=
     match l with
-      | avl_empty => (r, negative)
-      | avl_branch lb ll lp lr =>
+      | Avl_empty => (r, negative)
+      | Avl_branch lb ll lp lr =>
         let (l',s) := avl_remove_minimum_go lb ll lp lr
         in node b (inl s) l' p r
     end.
@@ -1129,7 +1129,7 @@ Section Minimum.
 
   Theorem avl_remove_minimum_go_binary_tree_invariant:
     forall (l:avl_tree T) (b:sign) (p:N * T) (r:avl_tree T),
-      binary_tree_invariant (avl_branch b l p r) ->
+      binary_tree_invariant (Avl_branch b l p r) ->
       binary_tree_invariant (fst (avl_remove_minimum_go b l p r)).
   Proof.
     pose node_binary_tree_invariant as T1.
@@ -1145,7 +1145,7 @@ Section Minimum.
 
   Theorem avl_remove_minimum_go_min_not_In :
     forall (l:avl_tree T) (b:sign) (p:N * T) (r:avl_tree T),
-      binary_tree_invariant (avl_branch b l p r) ->
+      binary_tree_invariant (Avl_branch b l p r) ->
       ~In (avl_find_minimum l p) (fst (avl_remove_minimum_go b l p r)).
   Proof.
     pose N.gt_lt as T1.
@@ -1170,8 +1170,8 @@ Section Minimum.
 
   Theorem avl_remove_minimum_go_removes_minimum :
     forall (l:avl_tree T) (min_k:N) (b:sign) (p:N * T) (r:avl_tree T),
-      binary_tree_invariant (avl_branch b l p r) ->
-      forall_keys (N.le min_k) (avl_branch b l p r) ->
+      binary_tree_invariant (Avl_branch b l p r) ->
+      forall_keys (N.le min_k) (Avl_branch b l p r) ->
       forall_keys (N.lt min_k) (fst (avl_remove_minimum_go b l p r)).
   Proof.
     pose all_keys_greater_chain_eq as T1. pose all_keys_greater_chain as T2.
@@ -1186,7 +1186,7 @@ Section Minimum.
 
   Theorem avl_remove_minimum_go_all_greater :
     forall (l:avl_tree T) (b:sign) (p:N * T) (r:avl_tree T),
-      binary_tree_invariant (avl_branch b l p r) ->
+      binary_tree_invariant (Avl_branch b l p r) ->
       forall_keys (N.lt (fst (avl_find_minimum l p)))
                   (fst (avl_remove_minimum_go b l p r)).
   Proof.
@@ -1226,10 +1226,10 @@ Section Minimum.
 
   Theorem avl_remove_minimum_go_balance_and_height_change_correct :
     forall (l:avl_tree T) (b:sign) (p:N * T) (r:avl_tree T),
-      balance_correct (avl_branch b l p r) ->
+      balance_correct (Avl_branch b l p r) ->
       balance_correct (fst (avl_remove_minimum_go b l p r)) /\
       height_change_correct (snd (avl_remove_minimum_go b l p r))
-                            (avl_branch b l p r)
+                            (Avl_branch b l p r)
                             (fst (avl_remove_minimum_go b l p r)).
   Proof.
     intros l. induction l as [b' l' IHl' p' r' IHr'|].
@@ -1240,7 +1240,7 @@ Section Minimum.
         rewrite <- go_eq. apply avl_remove_minimum_go_height_change_not_positive.
       }
       split.
-      + apply node_balance_correct with (avl_branch b' l' p' r') r; simpl in *; tauto.
+      + apply node_balance_correct with (Avl_branch b' l' p' r') r; simpl in *; tauto.
       + apply node_height_change_correct; destruct s; simpl in *;
         intuition (contradiction || tauto).
     - intros. simpl in *. rewrite N.max_0_l. tauto.
@@ -1248,9 +1248,9 @@ Section Minimum.
 
   Theorem avl_remove_minimum_go_height_change_correct :
     forall (l r:avl_tree T) (b:sign) (p:N * T) (r:avl_tree T),
-      balance_correct (avl_branch b l p r) ->
+      balance_correct (Avl_branch b l p r) ->
       height_change_correct (snd (avl_remove_minimum_go b l p r))
-                            (avl_branch b l p r)
+                            (Avl_branch b l p r)
                             (fst (avl_remove_minimum_go b l p r)).
   Proof.
     pose avl_remove_minimum_go_balance_and_height_change_correct as H.
@@ -1259,7 +1259,7 @@ Section Minimum.
 
   Theorem avl_remove_minimum_go_balance_correct :
     forall (l r:avl_tree T) (b:sign) (p:N * T) (r:avl_tree T),
-      balance_correct (avl_branch b l p r) ->
+      balance_correct (Avl_branch b l p r) ->
       balance_correct (fst (avl_remove_minimum_go b l p r)).
   Proof.
     intros.
@@ -1273,8 +1273,8 @@ Section Remove.
 
   Definition avl_remove_top (b:sign) (l:avl_tree T) (r:avl_tree T) : avl_tree T * sign :=
     match r with
-      | avl_empty => (l, negative)
-      | avl_branch rb rl rp rr =>
+      | Avl_empty => (l, negative)
+      | Avl_branch rb rl rp rr =>
         let (r',s) := avl_remove_minimum_go rb rl rp rr
         in node b (inr s) l (avl_find_minimum rl rp) r'
     end.
@@ -1318,8 +1318,8 @@ Section Remove.
 
   Lemma height_change_correct_change_branch_value :
     forall (t l r l' r':avl_tree T) (c b:sign) (p p':N * T),
-      height_change_correct c (avl_branch b l' p r') t <->
-      height_change_correct c (avl_branch b l' p' r') t.
+      height_change_correct c (Avl_branch b l' p r') t <->
+      height_change_correct c (Avl_branch b l' p' r') t.
   Proof.
     intros. destruct c; simpl; reflexivity.
   Qed.
@@ -1327,10 +1327,10 @@ Section Remove.
 
   Theorem avl_remove_top_balance_and_height_correct :
     forall (b:sign) (l:avl_tree T) (r:avl_tree T) (p:N * T) ,
-      balance_correct (avl_branch b l p r) ->
+      balance_correct (Avl_branch b l p r) ->
       balance_correct (fst (avl_remove_top b l r)) /\
       height_change_correct (snd (avl_remove_top b l r))
-                            (avl_branch b l p r)
+                            (Avl_branch b l p r)
                             (fst (avl_remove_top b l r)).
   Proof.
     pose avl_remove_minimum_go_height_change_correct as T1.
@@ -1341,7 +1341,7 @@ Section Remove.
     - simpl in *. destruct (avl_remove_minimum_go rb rl rp rr) as [r' s] eqn:min_eq.
       rewrite surjective_pairing in min_eq at 1. inversion min_eq as [[r'_eq s_eq]].
       split.
-      + apply node_balance_correct with l (avl_branch rb rl rp rr); simpl in *;
+      + apply node_balance_correct with l (Avl_branch rb rl rp rr); simpl in *;
         intuition auto.
       + rewrite height_change_correct_change_branch_value.
         assert (positive <> s)
@@ -1377,8 +1377,8 @@ Section Remove.
 
   Fixpoint avl_remove_go (k:N) (t:avl_tree T) : avl_tree T * sign :=
     match t with
-      | avl_empty => (avl_empty, zero)
-      | avl_branch b l (k',v') r =>
+      | Avl_empty => (Avl_empty, zero)
+      | Avl_branch b l (k',v') r =>
         match N.compare k k' with
           | Lt => let (l',s) := avl_remove_go k l in node b (inl s) l' (k',v') r
           | Gt => let (r',s) := avl_remove_go k r in node b (inr s) l (k',v') r'
@@ -1392,27 +1392,27 @@ Section Remove.
 
   Example avl_remove_ex1 :
     forall a b c : T,
-      avl_remove 2 (avl_insert 1 a (avl_insert 2 b (avl_insert 3 c avl_empty))) =
-      avl_branch positive (avl_insert 1 a avl_empty) (3,c) avl_empty.
+      avl_remove 2 (avl_insert 1 a (avl_insert 2 b (avl_insert 3 c Avl_empty))) =
+      Avl_branch positive (avl_insert 1 a Avl_empty) (3,c) Avl_empty.
   Proof. reflexivity. Qed.
 
   Example avl_remove_ex2 :
     forall a b c d : T,
       avl_remove
         2
-        (avl_insert 3 c (avl_insert 4 d (avl_insert 2 b (avl_insert 1 a avl_empty)))) =
-      avl_insert 1 a (avl_insert 4 d (avl_insert 3 c avl_empty)).
+        (avl_insert 3 c (avl_insert 4 d (avl_insert 2 b (avl_insert 1 a Avl_empty)))) =
+      avl_insert 1 a (avl_insert 4 d (avl_insert 3 c Avl_empty)).
   Proof. reflexivity. Qed.
 
   Example avl_remove_ex3 :
     forall a b c d e f g h : T,
       avl_remove
         4
-        (avl_branch
+        (Avl_branch
            positive
-           (avl_branch
+           (Avl_branch
               positive
-              (avl_branch
+              (Avl_branch
                  zero
                  (avl_singleton 1 a)
                  (2,b)
@@ -1420,16 +1420,16 @@ Section Remove.
               (4,d)
               (avl_singleton 5 e))
            (6,f)
-           (avl_branch negative avl_empty (7,g) (avl_singleton 8 h)))
-      = avl_branch
+           (Avl_branch negative Avl_empty (7,g) (avl_singleton 8 h)))
+      = Avl_branch
           positive
-          (avl_branch
+          (Avl_branch
              negative
              (avl_singleton 1 a)
              (2,b)
-             (avl_branch positive (avl_singleton 3 c) (5,e) avl_empty))
+             (Avl_branch positive (avl_singleton 3 c) (5,e) Avl_empty))
           (6,f)
-          (avl_branch negative avl_empty (7,g) (avl_singleton 8 h)).
+          (Avl_branch negative Avl_empty (7,g) (avl_singleton 8 h)).
   Proof. reflexivity. Qed.
 
   Theorem remove_not_In :
@@ -1607,8 +1607,8 @@ Section Lookup.
 
   Fixpoint avl_lookup (k:N) (t:avl_tree T) : option T :=
     match t with
-      | avl_empty => None
-      | avl_branch _ l (k',v) r =>
+      | Avl_empty => None
+      | Avl_branch _ l (k',v) r =>
         match N.compare k k' with
           | Lt => avl_lookup k l
           | Gt => avl_lookup k r
@@ -1621,7 +1621,7 @@ Section Lookup.
     forall a b c d : T,
       avl_lookup
         4
-        (avl_insert 3 c (avl_insert 4 d (avl_insert 2 b (avl_insert 1 a avl_empty))))
+        (avl_insert 3 c (avl_insert 4 d (avl_insert 2 b (avl_insert 1 a Avl_empty))))
       = Some d.
   Proof. reflexivity. Qed.
 
@@ -1629,7 +1629,7 @@ Section Lookup.
     forall a b c d : T,
       avl_lookup
         5
-        (avl_insert 3 c (avl_insert 4 d (avl_insert 2 b (avl_insert 1 a avl_empty))))
+        (avl_insert 3 c (avl_insert 4 d (avl_insert 2 b (avl_insert 1 a Avl_empty))))
       = None.
   Proof. reflexivity. Qed.  
 
@@ -1827,8 +1827,8 @@ Section Elems.
         
   Fixpoint avl_elems (t:avl_tree T) : list (N * T) :=
     match t with
-      | avl_empty => nil
-      | avl_branch _ l e r => e :: avl_elems l ++ avl_elems r
+      | Avl_empty => nil
+      | Avl_branch _ l e r => e :: avl_elems l ++ avl_elems r
     end.
   Global Arguments avl_elems : default implicits.
 
@@ -1969,8 +1969,8 @@ Section Map.
   
   Fixpoint avl_map (f:N -> A -> B) (t:avl_tree A) : avl_tree B :=
     match t with
-      | avl_empty => avl_empty
-      | avl_branch b l (k,v) r => avl_branch b (avl_map f l) (k, f k v) (avl_map f r)
+      | Avl_empty => Avl_empty
+      | Avl_branch b l (k,v) r => Avl_branch b (avl_map f l) (k, f k v) (avl_map f r)
     end.
   Global Arguments avl_map : default implicits.
 

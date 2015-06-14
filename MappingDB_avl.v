@@ -25,7 +25,7 @@ Section Create.
 
   Definition create_mapping (pd:N) (sel:N) (ko:kernel_object) :
     mapping_db -> mapping_db :=
-    avl_insert_merge pd (avl_insert sel ko) (avl_insert sel ko avl_empty).
+    avl_insert_merge pd (avl_insert sel ko) (avl_insert sel ko Avl_empty).
 
   Theorem create_has_mapping :
     forall (db:mapping_db) (pd:N) (sel:N) (ko:kernel_object),
@@ -84,7 +84,7 @@ Section Create.
     pose insert_balance_correct as T3.
     pose insert_binary_tree_invariant as T4.
     assert (empty_balance_correct:
-              forall T, balance_correct (@avl_empty T)) by (simpl; auto).
+              forall T, balance_correct (@Avl_empty T)) by (simpl; auto).
     intros db pd sel ko. intros inv_db. unfold create_mapping.
     unfold mapping_db_inv in *.
     split.
