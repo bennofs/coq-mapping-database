@@ -2,3 +2,6 @@
 *.vo
 *.glob
 .depend
+_build
+*.native
+*.ods
