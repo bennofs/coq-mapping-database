@@ -1,0 +1,243 @@
+% -*- TeX-command-extra-options: "-shell-escape"; TeX-engine: xetex; -*-
+\documentclass{beamer}
+
+\usetheme[numbering=none]{m}
+\usepackage{fontspec}
+\usepackage[ngerman]{babel}
+\usepackage{standalone}
+\usepackage{tikz}
+\usepackage{tikz-qtree}
+\usepackage{amsmath}
+\usepackage{minted}
+
+\usetikzlibrary{fit, calc, decorations, decorations.pathreplacing, shapes,
+  matrix, positioning}
+
+\tikzset{onslide/.code args={<#1>#2}{%
+  \only<#1>{\pgfkeysalso{#2}} % \pgfkeysalso doesn't change the path
+}}
+
+\tikzset{temporal/.code args={<#1>#2#3#4}{%
+  \temporal<#1>{\pgfkeysalso{#2}}{\pgfkeysalso{#3}}{\pgfkeysalso{#4}}%
+}}
+
+\tikzset{
+  every tree node/.style = {align=center, inner sep=5pt, text centered, font=\sffamily, rectangle, black, draw=black, very thick},
+  every leaf node/.style = {draw=none},
+  n/.style = {draw=none},
+  hidden/.style = {opacity=0},
+  uncover/.style = {temporal=#1{hidden}{}{}},
+  level distance=1.5cm,sibling distance=0.5cm
+}
+
+\renewcommand{\UrlFont}{\scriptsize}
+
+\begin{document}
+\title{Verifizierte Implementierung einer Mapping-Datenbank in Coq}
+\subtitle{wissenschafliches Forum 2015}
+\author{Benno Fünfstück}
+\date{\today}
+\institute{
+  \begin{tabbing}
+    Betreuer: \=Dr. Hendrik Tews \& Dr. Thomas Türk\\
+              \>FireEye Technologie Deutschland GmbH
+  \end{tabbing}
+}
+
+\maketitle
+
+\begin{frame}{Gliederung}
+  \setbeamertemplate{section in toc}[sections numbered]
+  \tableofcontents
+\end{frame}
+
+\section{Microkern und Mapping-Datenbank}
+
+\begin{frame}{Entwicklung des Linux-Kerns}
+  \centering
+  \includegraphics[width=\textwidth]{img/linux-loc2.jpg}\\
+  \vfill
+  \scriptsize{Quelle:} \url{http://cache.techie-buzz.com/images4/chinmoy/linux-kernel-rise.jpg}
+\end{frame}
+
+\begin{frame}{Lösungsansatz: Microkern}
+  \begin{itemize}
+    \item Nur wesentliche Funktionen im Kern
+    \item NOVA-Microkern: ca. 10000 Zeilen Quelltext
+    \item weniger Fehler im Kern
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Capabilities}
+  \input{capabilities.tex}
+\end{frame}
+
+\begin{frame}{Mapping-Datenbank}
+  \centering
+  \input{mapping-db.tex}
+\end{frame}
+
+\section{Implementierung}
+\begin{frame}{Operationen der Mapping-Datenbank}
+\begin{itemize}
+  \item Eintrag anlegen
+  \item Eintrag entfernen
+  \item Zugriff auf ein bestimmtes Kernobjekt entziehen
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Datenstruktur der Mapping-Datenbank}
+  \centering
+  \input{data-structure.tex}
+\end{frame}
+
+\begin{frame}{Darstellung der Zuordnung}
+  \centering
+  \begin{tabular}{|c|c|}
+    \hline
+    Capability & Kernobjekt \\ \hline
+    2          & B \\           
+    5          & E \\
+    1          & A \\
+    4          & D \\
+    3          & C \\
+    \dots      & \dots\\
+    \hline
+  \end{tabular}
+\end{frame}
+
+\begin{frame}{Binärer Baum}
+  \centering
+  \Tree [.$(2,B)$ [.$(1,A)$ ] \edge[onslide=<2->red];[.$(4,D)$ \edge[onslide=<3->red];[.$(3,C)$ ] [.$(5,E)$ ] ] ]
+\end{frame}
+
+\begin{frame}{Entartung}
+  \begin{tikzpicture}
+  \node<1->(n1){\Tree [.\node(r1){$1$}; ]};
+  \node<2->(n2)[at={($(n1.north east) + (0.7cm,0)$)}, anchor=north west]{
+    \Tree [.\node(r2){$1$}; \edge[n];{} [.2 ] ]
+  };
+  \node<3->(n3)[at={($(n2.north east) + (0.5cm,0)$)}, anchor=north west]{
+    \Tree [.\node(r3){$1$}; \edge[n];{} [.2 \edge[n];{} [.3 ] ] ]
+  };
+  \node<4->(n4)[at={($(n3.north east) + (0.5cm,0)$)}, anchor=north west]{
+    \Tree [.\node(r4){$1$}; \edge[n];{} [.2 \edge[n];{} [.3 \edge[n];{} [.4 ] ] ] ]
+  };
+  \draw<2->[->, ultra thick] (0.75,0) -- (1.4,0);    
+  \draw<3->[->, ultra thick] (2.9,0) -- (3.9,0);    
+  \draw<4->[->, ultra thick] (5.4,0) -- (7.0,0);    
+  \end{tikzpicture}
+\end{frame}
+
+\begin{frame}{Rotation}
+  \input{single-rotation.tex}
+\end{frame}
+
+\begin{frame}{Rotation: Beispiel}
+  \centering
+  \begin{tikzpicture}
+    \Tree 
+      [.\node[onslide=<3->{red}]{5};
+        [.\node[onslide=<3->{color=green!80!black}]{3}; [.2 
+          \edge[temporal=<2>{n}{red}{}];\node[every tree node, uncover=<2->, onslide=<2>{red}]{1}; ] 
+          [.4 ] ]
+        [.6 ]
+      ];
+    \begin{scope}[xshift=5cm, uncover=<4->]
+      \Tree
+        [.\node[color=green!80!black]{3};
+          [.2 [.1 ] ]
+          [.\node[color=red]{5}; [.4 ] [.6 ] ]
+        ];
+    \end{scope}
+    \draw<4->[->, very thick] (2.0,-1) -- (3.2,-1);
+  \end{tikzpicture}
+\end{frame}
+
+\begin{frame}{Vergleich mit Listenimplementierung}
+ \includegraphics[height=0.8\textheight, width=\textwidth]{../paper/bench.png}
+\end{frame}
+
+\section{Verifikation}
+\begin{frame}{Möglichkeiten zur Überprüfung}
+  \begin{itemize}
+    \item Manuelles Testen $\implies$ aufwändig, wenig Fälle abdeckbar
+    \item Automatisiertes Testen $\implies$ weniger aufwändig, aber immer noch
+      nicht alle Fälle testbar
+    \item Verifikation $\implies$ Beweis, gilt für alle Fälle
+    \item Coq ist ein interaktiver Theorembeweiser $\implies$ Beweise werden
+      durch den Computer überprüft.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Bewiesene Eigenschaften}
+  \begin{enumerate}
+    \item Die angestrebte Veränderung wird durchgeführt
+    \item Es finden keine weiteren Veränderungen statt
+    \item Alle Invarianten werden beibehalten 
+  \end{enumerate}
+  $\implies$ nur die angestrebte Veränderung wird durchgeführt.
+\end{frame}
+
+\begin{frame}[fragile]{Beispiel: Anlegen eines Mappings}
+  \begin{minted}[fontsize=\scriptsize]{coq}
+Theorem create_has_mapping :
+ forall (db:mapping_db) (pd:N) (sel:N) (ko:kernel_object),
+  mapping_db_inv db -> 
+  has_mapping pd sel ko (create_mapping pd sel ko db).
+  \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Beispiel: Anlegen eines Mappings}
+  \begin{minted}[fontsize=\scriptsize]{coq}
+Theorem create_preserve_other :
+ forall (db:mapping_db) (pd pd':N) (sel sel':N) 
+        (ko ko':kernel_object),
+  (pd' <> pd \/ sel' <> sel) -> mapping_db_inv db ->
+  (has_mapping pd sel ko db
+   <-> has_mapping pd sel ko (create_mapping pd' sel' ko' db)).
+  \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Beispiel: Anlegen eines Mappings}
+  \begin{minted}[fontsize=\scriptsize]{coq}
+Theorem create_invariant :
+ forall (db:mapping_db) (pd:N) (sel:N) (ko:kernel_object),
+  mapping_db_inv db ->
+  mapping_db_inv (create_mapping pd sel ko db).
+  \end{minted}
+\end{frame}
+
+\section{Ergebnisse und Ausblick}
+
+\begin{frame}{Ergebnisse}
+  \begin{itemize}
+    \item 2000 Zeilen Quelltext
+    \item verifizierte Implementierung von AVL-Bäumen in Coq
+    \item abstrakte Implementierung und Verifikation einer Mapping-Datenbank
+    \item durch Verifikation wurden mehrere Fehler gefunden 
+      \begin{itemize}
+        \item Fehler bei der Implementierung des Löschens
+        \item Falsche Anpassung der Balance im Falle einer Rotation
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Ausblick}
+  \begin{itemize}
+    \item Verknüpfung mit Operationen des Microkerns
+    \item Refinement auf C-Implementierung
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Fragen?}
+  \begin{itemize}
+    \item Bildquellen
+      \begin{itemize}
+        \item \url{http://cache.techie-buzz.com/images4/chinmoy/linux-kernel-rise.jpg}
+      \end{itemize}
+    \item \large Vielen Dank für die Aufmerksamkeit!
+  \end{itemize}
+\end{frame}
+
+\end{document}
