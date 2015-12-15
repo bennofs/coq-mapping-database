@@ -36,14 +36,6 @@
   level distance=1.5cm,sibling distance=0.5cm
 }
 
-\newcommand{\ttcomment}[1]{{\bfseries\color{red}TT: #1}}
-\newcommand{\ttreplace}[2]{{\bfseries\color{red}TT: #1} {\bfseries\color{blue}BF: #2}}
-\newcommand{\note}[1]{{\bfseries\color{green}N: #1}}
-
-% meine Kommentare abschalten
-%\renewcommand{\ttcomment}[1]{}
-%\renewcommand{\ttreplace}[2]{#2}
-
 \title{Verifizierte Implementierung einer Mapping-Datenbank in Coq}
 \author{Benno Fünfstück}
 \date{\today}
@@ -166,6 +158,7 @@ Im Gegensatz zum einfachen Testen, wobei die Implementierung für mehrere Beispi
 
 In dieser Arbeit geht es um die Entwicklung einer in dem interaktiven Theorembeweiser Coq\autocite{coq-web} verifizierten Mapping-Datenbank für den NOVA-Microkern.
 Die dabei zur effizienten Implementierung verwendeten und verifizierten AVL-Bäume haben aber auch außerhalb der Mapping-Datenbank viele Verwendungsmöglichkeiten. 
+Es ist außerdem möglich, effizient ausführbaren OCaml-Code aus dem Coq-Quellcode dieser Arbeit zur extrahieren.
 
 \section{Mapping-Datenbank}
 
@@ -393,7 +386,7 @@ Das Ergebnis dieser Einfügeoperationen ist in \autoref{fig:entartung} dargestel
   \label{fig:entartung}
 \end{figure}
 
-Auffällig ist, das nur jeweils der rechte Teilbaum eines Knotens Einträge enthält.
+Auffällig ist, dass nur jeweils der rechte Teilbaum eines Knotens Einträge enthält.
 Der Baum ähnelt somit einer Liste und die Höhe des Baums ist maximal.
 Damit ist auch Anzahl der Schritte, die das Navigieren im schlechtesten Fall benötigt, maximal (in diesem Fall $4$).
 In diesem Beispiel steigt sie sogar linear mit der Anzahl der Elemente an, genau wie bei einer Liste.
@@ -566,8 +559,7 @@ Diese Eigenschaft wird daraufhin durch Induktion über alle binären Bäume bewi
 
 Coq bietet außerdem die Möglichkeit, ausführbaren OCaml-Code aus Coq-Code zu extrahieren.\autocite{extract-overview}
 Damit ist es möglich, Coq-Code in ein OCaml-Projekt zu integrieren.
-Ein Ziel dieser Arbeit war es, dass die Extraktion von OCaml-Code möglich ist.
-Um das zu unterstützen und den generierten Code möglichst einfach zu halten, wird auf kompliziertere Coq-Features wie Typklassen oder Module verzichtet.
+Um das zu unterstützen und den generierten Code möglichst einfach zu halten, wird in dieser Arbeit auf kompliziertere Coq-Features wie Typklassen oder Module verzichtet.
 
 Die Umsetzung in Coq besteht im Wesentlichen aus zwei Teilen: der Mapping-Datenbank und der dafür benötigten Implementierung der finite Maps.
 Es wurden zwei verschiedene Datenstrukturen für finite Maps implementiert: eine einfache Darstellung mit assoziativen Listen und eine effizientere Implementierung mit AVL-Bäumen.
