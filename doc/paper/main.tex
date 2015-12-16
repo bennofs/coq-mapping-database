@@ -51,7 +51,7 @@ Martin-Andersen-Nexö-Gymnasium Dresden
 
 
 \noindent
-Dokumentation zur wissenenschaftlichen Projektarbeit
+Dokumentation zur Besonderen Lernleistung 
 \vspace{1.5 cm}
 
 \large
@@ -79,10 +79,10 @@ externer Betreuer: \=\mdseries Dr. Hendrik Tews\\
 
 \noindent
 \begin{tabbing}
-schulischer Betreuer:
+schulischer Betreuer: \=\mdseries Herr Bechstädt
 \end{tabbing}
 \vspace{1.0 cm}
-Dresden, 15.06.2015
+Dresden: 18.12.2015
 
 \end{raggedright}
 \cleardoublepage
@@ -158,7 +158,8 @@ Im Gegensatz zum einfachen Testen, wobei die Implementierung für mehrere Beispi
 
 In dieser Arbeit geht es um die Entwicklung einer in dem interaktiven Theorembeweiser Coq\autocite{coq-web} verifizierten Mapping-Datenbank für den NOVA-Microkern.
 Die dabei zur effizienten Implementierung verwendeten und verifizierten AVL-Bäume haben aber auch außerhalb der Mapping-Datenbank viele Verwendungsmöglichkeiten. 
-Es ist außerdem möglich, effizient ausführbaren OCaml-Code aus dem Coq-Quellcode dieser Arbeit zur extrahieren.
+Während der Entwicklung wurde darauf geachtet, dass eine Extraktion von OCaml-Code aus dem Coq-Quellcode, in welchem die Beweise und die Implementierung verfasst sind, möglich ist.
+Damit kann die enstandene Implementierung auch von anderem OCaml-Code verwendet werden.
 
 \section{Mapping-Datenbank}
 
@@ -423,21 +424,24 @@ Dadurch wird der Baum so verändert, dass danach eine Einfachrotation an A durch
 \begin{figure}
   \centering
   \begin{tikzpicture}
+    [ level distance=0.75cm, sibling distance=0.5cm,
+      subtree/.style = {isosceles triangle, shape border rotate=90, anchor=north, yshift=1mm, inner sep=0cm}
+    ]
     \node(before) {
       \Tree [.\node[color=red]{A}; 
         [.\node[color=green!80!black]{B}; 
-          [.\node[isosceles triangle, shape border rotate=90]{C}; ]
-          [.\node[isosceles triangle, shape border rotate=90]{D}; ]
+          [.\node[subtree, minimum height=1.75cm]{C}; ]
+          [.\node[subtree, minimum height=1cm]{D}; ]
         ]
-        [.\node[isosceles triangle, shape border rotate=90]{E}; ] 
+        [.\node[subtree, minimum height=1cm]{E}; ] 
       ]
     };
     \node(after) [at={($(before.east) + (3cm,0)$)}, anchor=west] {
       \Tree [.\node[color=green!80!black]{B}; 
-        [.\node[isosceles triangle, shape border rotate=90]{C}; ] 
+        [.\node[subtree, minimum height=1.75cm]{C}; ] 
         [.\node[color=red]{A}; 
-          [.\node[isosceles triangle, shape border rotate=90]{D}; ] 
-          [.\node[isosceles triangle, shape border rotate=90]{E}; ] ] ]
+          [.\node[subtree, minimum height=1cm]{D}; ] 
+          [.\node[subtree, minimum height=1cm]{E}; ] ] ]
     };
     \draw[->, ultra thick] ($(before.east) + (0.5cm,0)$) -- ($(after.west) - (0.5,0)$);    
   \end{tikzpicture}
@@ -448,32 +452,35 @@ Dadurch wird der Baum so verändert, dass danach eine Einfachrotation an A durch
 \begin{figure}
   \centering
   \begin{tikzpicture}
+    [ level distance=0.75cm, sibling distance=0.5cm,
+      subtree/.style = {isosceles triangle, shape border rotate=90, anchor=north, yshift=1mm, inner sep=0cm}
+    ]
     \node(first) {
       \Tree [.\node[color=blue]{A};
         [.\node[color=green!80!black]{B}; 
-          [.\node[isosceles triangle, shape border rotate=90]{C}; ] 
+          [.\node[subtree, minimum height=1cm]{C}; ] 
           [.\node[color=red]{D};
-            [.\node[isosceles triangle, shape border rotate=90]{E}; ] 
-            [.\node[isosceles triangle, shape border rotate=90]{F}; ] ] ] 
-        [.\node[isosceles triangle, shape border rotate=90]{G}; ] ]
+            [.\node[subtree, minimum height=1cm]{E}; ] 
+            [.\node[subtree, minimum height=1cm]{F}; ] ] ] 
+        [.\node[subtree, minimum height=1cm]{G}; ] ]
     };
     \node(second) [at={($(first.east) + (1cm,0)$)}, anchor=west] {
       \Tree [.\node[color=blue]{A};
         [.\node[color=red]{D};
           [.\node[color=green!80!black]{B};
-            [.\node[isosceles triangle, shape border rotate=90]{C}; ] 
-            [.\node[isosceles triangle, shape border rotate=90]{E}; ] ] 
-          [.\node[isosceles triangle, shape border rotate=90]{F}; ] ] 
-         [.\node[isosceles triangle, shape border rotate=90]{G}; ] ]
+            [.\node[subtree, minimum height=1cm]{C}; ] 
+            [.\node[subtree, minimum height=1cm]{E}; ] ] 
+          [.\node[subtree, minimum height=1cm]{F}; ] ] 
+         [.\node[subtree, minimum height=1cm]{G}; ] ]
     };   
     \node(third) [at={($(second.south west) + (-0.5cm,-1cm)$)}, anchor=north] {
       \Tree [.\node[color=red]{D};
-        [.\node[color=green!80!black]{B};
-          [.\node[isosceles triangle, shape border rotate=90]{C}; ] 
-          [.\node[isosceles triangle, shape border rotate=90]{E}; ] ] 
-        [.\node[color=blue]{A};
-          [.\node[isosceles triangle, shape border rotate=90]{F}; ] 
-          [.\node[isosceles triangle, shape border rotate=90]{G}; ] ] ]
+        [.\node[color=green!80!black, yshift=-2mm]{B};
+          [.\node[subtree, minimum height=1cm, yshift=-5mm]{C}; ] 
+          [.\node[subtree, minimum height=1cm, yshift=-5mm]{E}; ] ] 
+        [.\node[color=blue, yshift=-2mm]{A};
+          [.\node[subtree, minimum height=1cm, yshift=-5mm]{F}; ] 
+          [.\node[subtree, minimum height=1cm, yshift=-5mm]{G}; ] ] ]
     };
     \draw[->, ultra thick] ($(first.east) + (0.5cm,0)$) -- ($(second.west) + (0.3cm,0)$);
     \draw[->, ultra thick] ($(second.south west) + (0.3cm,-0.2cm)$) -- ($(third.north) + (0.2cm, 0.2cm)$);
@@ -983,6 +990,29 @@ Um dieses Ziel zu erreichen werden jedoch noch mehrere Zwischenschritte notwendi
     End Invariants.
   \end{minted}
 \end{code}
+
+\cleardoublepage
+
+\section*{Selbstständigkeitserklärung}
+
+Hiermit erkläre ich, dass ich die vorliegende Arbeit
+selbstständig angefertigt, nicht anderweitig zu Prüfungszwecken vorgelegt und
+keine anderen als die angegebenen Hilfsmittel verwendet habe. Sämtliche 
+wissentlich verwendete Textausschnitte, Zitate oder Inhalte anderer Verfasser 
+wurden ausdrücklich als solche gekennzeichnet.\\[2ex]
+Dresden, den 16.12.2015\\[6ex]
+\flushleft
+\newlength\us
+\settowidth{\us}{-Benno~Fünfstück-}
+\begin{tabular}{p{\us}}\hline
+\centering\footnotesize Benno~Fünfstück
+\end{tabular}
+
+\pagebreak
+
+\section*{Dank}
+Ich danke meinen beiden Betreuern, Hendrik Tews und Thomas Türk, für die gute Unterstützung bei der Erstellung dieser
+Arbeit. 
 
 \end{document}
 %  LocalWords:  Betriebssystemkerne
