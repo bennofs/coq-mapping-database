@@ -1,7 +1,7 @@
 % -*- TeX-command-extra-options: "-shell-escape"; TeX-engine: xetex; -*-
 \documentclass{beamer}
 
-\usetheme[numbering=none]{m}
+\usetheme[numbering=none]{metropolis}
 \usepackage{fontspec}
 \usepackage[ngerman]{babel}
 \usepackage{standalone}
@@ -31,12 +31,13 @@
 }
 
 \renewcommand{\UrlFont}{\scriptsize}
+\addtobeamertemplate{frametitle}{\vspace*{0.3cm}}{}
 
 \begin{document}
 \title{Verifizierte Implementierung einer Mapping-Datenbank in Coq}
-\subtitle{wissenschafliches Forum 2015}
+\subtitle{besondere Lernleistung 2016}
 \author{Benno Fünfstück}
-\date{\today}
+\date{12. Mai 2016}
 \institute{
   \begin{tabbing}
     Betreuer: \=Dr. Hendrik Tews \& Dr. Thomas Türk\\
@@ -180,7 +181,7 @@
 \end{frame}
 
 \begin{frame}[fragile]{Beispiel: Anlegen eines Mappings}
-  \begin{minted}[fontsize=\scriptsize]{coq}
+  \begin{minted}[fontsize=\small]{coq}
 Theorem create_has_mapping :
  forall (db:mapping_db) (pd:N) (sel:N) (ko:kernel_object),
   mapping_db_inv db -> 
@@ -189,7 +190,7 @@ Theorem create_has_mapping :
 \end{frame}
 
 \begin{frame}[fragile]{Beispiel: Anlegen eines Mappings}
-  \begin{minted}[fontsize=\scriptsize]{coq}
+  \begin{minted}[fontsize=\small]{coq}
 Theorem create_preserve_other :
  forall (db:mapping_db) (pd pd':N) (sel sel':N) 
         (ko ko':kernel_object),
@@ -200,7 +201,7 @@ Theorem create_preserve_other :
 \end{frame}
 
 \begin{frame}[fragile]{Beispiel: Anlegen eines Mappings}
-  \begin{minted}[fontsize=\scriptsize]{coq}
+  \begin{minted}[fontsize=\small]{coq}
 Theorem create_invariant :
  forall (db:mapping_db) (pd:N) (sel:N) (ko:kernel_object),
   mapping_db_inv db ->

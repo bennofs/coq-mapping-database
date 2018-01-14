@@ -220,7 +220,7 @@ Die Mapping-Datenbank speichert die Informationen, die dieser Manager benötigt.
     \end{itemize}
 \end{description}
 
-Für die Implementation der Mapping-Datenbank gibt es mehrere Möglichkeiten.
+Für die Implementierung der Mapping-Datenbank gibt es mehrere Möglichkeiten.
 Eine Möglichkeit ist, den Kernobjekten die Protection Domains und Selektoren, an denen sie vorhanden sind, zuzuordnen.
 Das Ermitteln aller Protection Domains, die Zugriff auf ein bestimmtes Kernobjekt haben, ist in dieser Variante einfach.
 Allerdings sind die Operationen zum Einfügen und Entfernen damit nicht so effizient umsetzbar, denn diese müssen den möglicherweise bereits existierenden Eintrag anhand von Protection Domain und Selektor finden. 
@@ -259,9 +259,9 @@ Dies ist beispielhaft für zwei Protection-Domains in \autoref{fig:nested-maps} 
 
 \section{Binäre Bäume}
 
-Für die Implementation der Mapping-Datenbank müssen endliche Zuordnungen gespeichert werden, auch als finite Maps bezeichnet.
+Für die Implementierung der Mapping-Datenbank müssen endliche Zuordnungen gespeichert werden, auch als finite Maps bezeichnet.
 Binäre Bäume sind dafür eine bekannte, effiziente Datenstruktur.
-Eine Zuordnung ordnet dabei verschiedenen Schlüssel jeweils einen bestimmter Wert zu und die Menge der Schlüssel, denen ein Wert zugeordnet ist, ist endlich. 
+Eine Zuordnung ordnet dabei verschiedenen Schlüsseln jeweils einen bestimmten Wert zu und die Menge der Schlüssel, denen ein Wert zugeordnet ist, ist endlich. 
 Es muss nicht jedem Schlüssel ein Wert zugeordnet sein, aber keinem Schlüssel darf mehr als ein Wert zugeordnet sein, die Zuordnung ist also eindeutig.
 Ein Eintrag $(s, w)$ besteht aus einem Schlüssel $s$ und dem ihm zugeordneten Wert $w$. 
 Eine Zuordnung wird als leer bezeichnet, wenn sie keine Einträge enthält, also keinem Schlüssel ein Wert zugeordnet ist.
